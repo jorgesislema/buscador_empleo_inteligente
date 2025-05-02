@@ -25,6 +25,7 @@ __pycache__/
 # Entornos Virtuales (cubre nombres comunes)
 venv/
 env/
+.env.example
 .venv/
 .env/ # Asegura no confundir con el archivo .env
 *_env/
