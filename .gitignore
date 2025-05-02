@@ -1,0 +1,61 @@
+# === Archivo .gitignore para el Proyecto Buscador de Empleo Inteligente ===
+
+# --- Archivos y Carpetas Específicos del Proyecto ---
+
+# Archivo de variables de entorno con secretos. ¡NUNCA SUBIR A GITHUB!
+.env
+
+# Directorio de datos generados (Base de datos, CSVs, etc.)
+# Generalmente no queremos versionar los datos de salida.
+data/
+
+# Directorio de archivos de registro (logs)
+logs/
+
+# --- Artefactos de Python ---
+
+# Archivos de bytecode compilado
+*.pyc
+*.pyo
+*.pyd
+
+# Directorio de caché de bytecode
+__pycache__/
+
+# Entornos Virtuales (cubre nombres comunes)
+venv/
+env/
+.env.example
+.venv/
+.env/ # Asegura no confundir con el archivo .env
+*_env/
+env.bak/
+venv.bak/
+
+# Archivos y directorios de distribución/instalación
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+*.whl
+MANIFEST
+
+# --- Archivos de IDEs y Editores Comunes ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- Archivos del Sistema Operativo ---
+.DS_Store  # macOS
+Thumbs.db  # Windows
+
+# --- Jupyter Notebook ---
+.ipynb_checkpoints/
+
+# --- Otros ---
+# Añade aquí cualquier otro archivo o patrón que no deba ser versionado.
+# Por ejemplo, si generas reportes temporales:
+# reports/
+# *.tmp
