@@ -1,151 +1,48 @@
-# === Archivo Principal de Configuración (settings.yaml) ===
-# Versión actualizada con aclaración sobre ubicaciones en Ecuador.
-# Define los parámetros para la búsqueda de empleos.
+# settings.yaml - Configuración optimizada
 
-# --- Categorías de Palabras Clave ---
-job_titles: # Títulos de puesto específicos
-  - "data scientist"
-  - "científico de datos"
-  - "data science specialist"
-  - "data analyst"
-  - "analista de datos"
-  - "business analyst"
-  - "analista de negocio"
-  - "BI analyst"
-  - "business intelligence"
-  - "data engineer"
-  - "ingeniero de datos"
-  - "machine learning engineer"
-  - "MLOps engineer"
-  - "AI engineer"
-  - "NLP engineer"
-  - "big data engineer"
-  - "decision scientist"
-
-tools_technologies: # Herramientas y tecnologías específicas
-  - "python"
-  - "r"
-  - "sql"
-  - "excel"
-  - "pandas"
-  - "numpy"
-  - "scikit-learn"
-  - "seaborn"
-  - "matplotlib"
-  - "tensorflow"
-  - "pytorch"
-  - "power bi"
-  - "tableau"
-  - "looker"
-  - "apache spark"
-  - "kafka"
-  - "databricks"
-  - "airflow"
-  - "snowflake"
-  - "bigquery"
-  - "aws"
-  - "gcp"
-  - "azure"
-
-topics: # Conceptos y áreas temáticas generales
-  - "machine learning"
-  - "aprendizaje automático"
-  - "inteligencia artificial"
-  - "IA"
-  - "deep learning"
-  - "NLP"
-  - "procesamiento de lenguaje natural"
-  - "análisis predictivo"
-  - "minería de datos"
-  - "modelos estadísticos"
-  - "ciencia de datos"
-  - "visualización de datos"
-  - "calidad de datos"
-  - "gobernanza de datos"
-  - "ingeniería de datos"
-  - "análisis exploratorio"
-  - "data pipeline"
-  - "automatización de datos"
-
-# --- Ubicaciones de Búsqueda ---
-# Especificaciones actualizadas:
-# - Ecuador Presencial/Híbrido: SOLO Quito.
-# - Ecuador Remoto: Cualquier ciudad (buscaremos explícitamente "Remote Ecuador" o términos genéricos).
-# - Otros Países (América, España): SOLO Remoto.
 locations:
-  # Ecuador (Presencial/Híbrido - Solo Quito)
-  - "Quito"
+  - remoto
+  - Ecuador
+  - Quito
+  - España
 
-  # Ecuador (Remoto) - Para capturar ofertas remotas dentro de Ecuador
-  - "Remote Ecuador"
-  - "Ecuador Remoto" # Añadir variaciones puede ser útil
+keywords:
+  # Ciencia de datos (core roles)
+  - data scientist
+  - data analyst
+  - data engineer
 
-  # Modalidades Remotas (Genéricas y otras regiones/países)
-  # Términos genéricos
-  - "remoto"
-  - "remote"
-  - "teletrabajo"
-  - "trabajo desde casa"
-  # Términos específicos para remoto fuera de Ecuador
-  - "Remote Spain"
-  - "Remote LATAM"
-  - "Remote South America"
-  - "Remote North America"
-  - "Remote USA"
-  - "Remote Canada"
-  - "Remote Mexico"
-  - "Remote Colombia"
-  - "Remote Argentina"
-  - "Remote Chile"
-  - "Remote Peru"
-  - "Remote Brazil"
-  - "Remote Uruguay"
-  - "Remote Paraguay"     
-  - "Remote Venezuela"
-  - "Remote Bolivia"
-    
-  # ... otros países de América ...
-  - "Remote Global"
+  # Machine Learning e IA
+  - machine learning engineer
+  - AI engineer
+  - inteligencia artificial
 
-# --- Configuración de Almacenamiento ---
-# (Se mantiene igual)
-data_storage:
-  sqlite:
-    database_name: "jobs.db"
-    table_name: "ofertas_empleo"
-  csv:
-    export_enabled: true
-    export_directory: "data/historico"
-    filename_format: "ofertas_{date}.csv"
+  # Variantes en español
+  - científico de datos
+  - analista de datos
+  - ingeniero de datos
 
-# --- Fuentes de Datos ---
-# (Se mantiene igual)
-sources:
-  apis:
-    adzuna:
-      enabled: true
-      results_per_page: 50
-    arbeitnow:
-      enabled: true
-    jobicy:
-      enabled: true
-  scrapers:
-    computrabajo:
-      enabled: true
-      # URLs podríamos necesitar ajustes para buscar 'Quito' o 'Remote Ecuador' específicamente.
-    multitrabajos:
-      enabled: true
-    infojobs:
-      enabled: true
-    porfinempleo:
-      enabled: false
-    # Otros...
+  # Otros términos útiles
+  - business intelligence
+  - ciencia de datos
+  - big data
 
-# --- Configuración de Logging ---
-# (Se mantiene igual)
-logging:
-  level: "INFO"
-  log_file: "app.log"
+  # Freelance / remoto
+  - remote data jobs
+  - freelance data
 
-# --- Otros Parámetros (Opcional) ---
-# request_delay_seconds: 1
+filters:
+  min_salary: 0  # Opcional: se puede usar para descartar ofertas no pagadas
+  languages:
+    - en
+    - es
+  exclude_keywords:
+    - senior
+    - lead
+    - principal
+    - architect
+    - manager
+
+# Otros parámetros opcionales
+max_results_per_source: 100
+date_posted_within_days: 7  # Solo ofertas recientes
