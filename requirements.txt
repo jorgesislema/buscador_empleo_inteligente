@@ -19,3 +19,4 @@ pandas>=1.5.0         # Aunque quizás no la usemos al principio, Pandas es casi
 # --- Para Programar Tareas (Scheduler Opcional) ---
 schedule>=1.1.0       # Si queremos que el script se ejecute automáticamente cada cierto tiempo (ej. una vez al día), esta librería es sencilla y útil.
 
+python-dotenv
