@@ -1,48 +1,195 @@
-# settings.yaml - Configuración optimizada
+# === Archivo Principal de Configuración (settings.yaml) ===
+# Versión COMPATIBLE con el código Python generado hasta ahora.
+# Incluye todas las secciones necesarias: keywords detalladas, ubicaciones,
+# almacenamiento, fuentes (APIs/Scrapers) y logging.
+# ¡Este es nuestro centro de mando!
 
+# --- Categorías de Palabras Clave ---
+# Dividimos las palabras clave para más claridad. JobFilter las leerá todas.
+job_titles: # Títulos de puesto específicos
+  - "data scientist"
+  - "científico de datos"
+  - "data science specialist"
+  - "data analyst"
+  - "analista de datos"
+  - "business analyst"
+  - "analista de negocio"
+  - "BI analyst"
+  - "business intelligence"
+  - "data engineer"
+  - "ingeniero de datos"
+  - "machine learning engineer"
+  - "MLOps engineer"
+  - "AI engineer"
+  - "NLP engineer"
+  - "big data engineer"
+  - "decision scientist"
+
+tools_technologies: # Herramientas y tecnologías específicas
+  - "python"
+  - "r"
+  - "sql"
+  - "excel"
+  - "pandas"
+  - "numpy"
+  - "scikit-learn"
+  - "seaborn"
+  - "matplotlib"
+  - "tensorflow"
+  - "pytorch"
+  - "power bi"
+  - "tableau"
+  - "looker"
+  - "apache spark"
+  - "kafka"
+  - "databricks"
+  - "airflow"
+  - "snowflake"
+  - "bigquery"
+  - "aws"
+  - "gcp"
+  - "azure"
+
+topics: # Conceptos y áreas temáticas generales
+  - "machine learning"
+  - "aprendizaje automático"
+  - "inteligencia artificial"
+  - "IA"
+  - "deep learning"
+  - "NLP"
+  - "procesamiento de lenguaje natural"
+  - "análisis predictivo"
+  - "minería de datos"
+  - "modelos estadísticos"
+  - "ciencia de datos"
+  - "visualización de datos"
+  - "calidad de datos"
+  - "gobernanza de datos"
+  - "ingeniería de datos"
+  - "análisis exploratorio"
+  - "data pipeline"
+  - "automatización de datos"
+
+# --- Ubicaciones de Búsqueda ---
+# Especificaciones:
+# - Ecuador Presencial/Híbrido: SOLO Quito.
+# - Ecuador Remoto: Cualquier ciudad (buscaremos "Remote Ecuador" o genéricos).
+# - Otros Países (América, España): SOLO Remoto.
 locations:
-  - remoto
-  - Ecuador
-  - Quito
-  - España
+  # Ecuador (Presencial/Híbrido - Solo Quito)
+  - "Quito"
 
-keywords:
-  # Ciencia de datos (core roles)
-  - data scientist
-  - data analyst
-  - data engineer
+  # Ecuador (Remoto)
+  - "Remote Ecuador"
+  - "Ecuador Remoto"
 
-  # Machine Learning e IA
-  - machine learning engineer
-  - AI engineer
-  - inteligencia artificial
+  # Modalidades Remotas (Genéricas y otras regiones/países)
+  - "remoto"
+  - "remote"
+  - "teletrabajo"
+  - "trabajo desde casa"
+  - "Remote Spain"
+  - "Remote LATAM"
+  - "Remote South America"
+  - "Remote North America"
+  - "Remote USA"
+  - "Remote Canada"
+  - "Remote Mexico"
+  - "Remote Colombia"
+  - "Remote Argentina"
+  - "Remote Chile"
+  - "Remote Peru"
+  - "Remote Global"
 
-  # Variantes en español
-  - científico de datos
-  - analista de datos
-  - ingeniero de datos
+# --- Configuración de Almacenamiento ---
+data_storage:
+  sqlite:
+    database_name: "jobs.db"       # Nombre del archivo SQLite en /data/
+    table_name: "ofertas_empleo" # Nombre de la tabla
+  csv:
+    export_enabled: true           # ¿Exportar a CSV además de guardar en DB?
+    export_directory: "data/historico" # Carpeta para los CSVs
+    filename_format: "ofertas_{date}.csv" # Formato del nombre (se reemplaza {date})
 
-  # Otros términos útiles
-  - business intelligence
-  - ciencia de datos
-  - big data
+# --- Fuentes de Datos ---
+# ¡Aquí activas o desactivas cada API/Scraper!
+# Cambia 'enabled: false' a 'enabled: true' para las fuentes que quieras probar.
+# Empieza activando solo unas pocas que sepas que funcionan o que quieras depurar.
+sources:
+  apis: # Clientes que usan APIs oficiales (generalmente más estables)
+    adzuna:
+      enabled: true # ¡Requiere APP_ID y APP_KEY en .env!
+      base_api_url: "https://api.adzuna.com/v1/api/jobs/"
+      results_per_page: 50
+      default_country_code: 'ec'
+    arbeitnow:
+      enabled: true # API pública, no necesita key
+    jobicy:
+      enabled: true # API pública, no necesita key
+    jooble:
+      enabled: false # ¡Requiere JOOBLE_API_KEY en .env! (Cliente API)
+    remoteok:
+      enabled: true # API pública JSON, no necesita key
 
-  # Freelance / remoto
-  - remote data jobs
-  - freelance data
+  scrapers: # Scrapers que leen HTML (más frágiles, ¡NECESITAN VERIFICACIÓN DE SELECTORES!)
+    # --- Ecuador ---
+    computrabajo:
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://www.computrabajo.com.ec"
+    multitrabajos:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://www.multitrabajos.com"
+    porfinempleo:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://www.porfinempleo.com/" # ¡Verificar URL!
+    portalempleoec: # Apunta a encuentraempleo.trabajo.gob.ec
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores y quizás método (POST?)!
+      base_url: "https://encuentraempleo.trabajo.gob.ec/"
+    bumeran:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://www.bumeran.com.ec/"
+    # --- España ---
+    infojobs:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://www.infojobs.net"
+    tecnoempleo:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://www.tecnoempleo.com/"
+    # --- LATAM/Global/Remoto ---
+    empleosnet:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores y lógica de país!
+      base_url: "https://www.empleos.net/"
+    getonboard:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://www.getonboard.com/" # O .co? Verificar
+    remoterocketship:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      base_url: "https://remoterocketship.com/"
+    # --- Freelance ---
+    workana:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores! (Proyectos freelance)
+      base_url: "https://www.workana.com/"
+    soyfreelancer:
+      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores! (Proyectos freelance)
+      base_url: "https://www.soyfreelancer.com/"
+    # --- Otros Comentados ---
+    # ... (linkedin, indeed, etc.) ...
 
-filters:
-  min_salary: 0  # Opcional: se puede usar para descartar ofertas no pagadas
-  languages:
-    - en
-    - es
-  exclude_keywords:
-    - senior
-    - lead
-    - principal
-    - architect
-    - manager
+# --- Configuración de Logging ---
+logging:
+  level: "INFO" # Nivel mínimo a registrar (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  log_file: "app.log" # Nombre del archivo en /logs/
 
-# Otros parámetros opcionales
-max_results_per_source: 100
-date_posted_within_days: 7  # Solo ofertas recientes
+# --- Otros Parámetros (Opcional, ideas para futuro) ---
+# filters:                          # Sección para filtros adicionales (NECESITA IMPLEMENTACIÓN EN PYTHON)
+#   min_salary: 0                 # Filtrar por salario mínimo (0 o None para no filtrar)
+#   required_languages: ['es']    # Filtrar por idiomas requeridos (ej: solo español)
+#   exclude_keywords:             # Filtrar ofertas que contengan estas palabras (ej: seniority)
+#     - senior
+#     - lead
+#     - principal
+#     - architect
+#     - manager
+#     - director
+# max_results_per_source: 100       # Limitar cuántos resultados traer de cada fuente
+# date_posted_within_days: 14       # Solo traer ofertas publicadas en los últimos N días
