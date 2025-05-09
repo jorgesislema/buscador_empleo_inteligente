@@ -135,7 +135,7 @@ sources:
     # --- Ecuador ---
     computrabajo:
       enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
-      base_url: "https://www.computrabajo.com.ec"
+      base_url: "https://ec.computrabajo.com/"
     multitrabajos:
       enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://www.multitrabajos.com"
