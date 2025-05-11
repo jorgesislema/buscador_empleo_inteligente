@@ -29,8 +29,6 @@ sys.path.insert(0, str(project_root))
 try:
     from src.utils import config_loader, logging_config
     from src.utils.http_client import HTTPClient
-    from src.apis.base_api import BaseAPIClient
-    from src.scrapers.base_scraper import BaseScraper
 
     # --- APIs ---
     from src.apis.adzuna_client import AdzunaClient
