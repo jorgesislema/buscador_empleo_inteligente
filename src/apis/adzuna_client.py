@@ -9,8 +9,7 @@ Cliente API específico para Adzuna.
 import logging
 from typing import List, Dict, Any, Optional, Set
 from datetime import datetime
-import json
-from urllib.parse import quote_plus, urljoin
+from urllib.parse import urljoin
 
 # Importaciones y fallbacks... (igual que antes)
 try:
@@ -23,13 +22,13 @@ except ImportError:
     # ... (stubs igual que antes) ...
     class BaseAPIClient:
         def __init__(self, source_name, http_client, config): self.source_name=source_name; self.base_url=config.get('base_url'); pass
-        def _get_api_key(self, suffix): return None
-        def get_standard_job_dict(self): return {'fuente': getattr(self, 'source_name', 'unknown')}
+        def __init__(self, source_name, config): self.source_name=source_name; self.base_url=config.get('base_url'); pass
+        def _get_api_key(self): return None
     class HTTPClient: pass
     class config_loader:
         @staticmethod
         def get_secret(key, default=None): return default
-        @staticmethod
+        def get_secret(default=None): return default
         def get_config(): return {}
 
 logger = logging.getLogger(__name__)
