@@ -64,6 +64,9 @@ class RemoteOkClient(BaseAPIClient):
             return []
 
         try:
+            if not response:
+                logger.error(f"[{self.source_name}] Respuesta nula de la API.")
+                return []
             raw_data = response.json()
             if isinstance(raw_data, list) and len(raw_data) > 1 and isinstance(raw_data[0], dict) and 'legal' in raw_data[0]:
                 jobs_list = raw_data[1:]
