@@ -29,6 +29,7 @@ try:
 except ImportError as e:
     print(f"Error: No se pudieron importar módulos necesarios: {e}")
     print("Asegúrate de ejecutar este script desde la carpeta raíz del proyecto.")
+    print("Verifica que las rutas de los módulos 'src.persistence.database_manager' y 'src.utils.logging_config' sean correctas.")
     sys.exit(1)
 
 # Configuración básica del logger para este script
