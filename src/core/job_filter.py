@@ -30,8 +30,8 @@ class JobFilter:
 
         try:
             if config_loader:
-                config = config_loader.get_config()
-                if not config:
+                config = config_loader.get_config() or {}
+                if not isinstance(config, dict):
                     logger.error("No se pudo cargar la configuración para JobFilter. El filtro usará criterios vacíos.")
                     return
 
@@ -55,8 +55,8 @@ class JobFilter:
         if not self.keywords:
             return True
 
-        title = (job.get('titulo') or "").lower()
-        description = (job.get('descripcion') or "").lower()
+        title = str(job.get('titulo', "")).lower()
+        description = str(job.get('descripcion', "")).lower()
         text = f"{title} {description}"
         return any(kw in text for kw in self.keywords)
 
@@ -64,7 +64,7 @@ class JobFilter:
         if not self.target_locations:
             return True
 
-        location = (job.get('ubicacion') or "").lower().strip()
+        location = str(job.get('ubicacion', "")).lower().strip()
         if not location:
             return False
 
