@@ -10,20 +10,28 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
-from urllib.parse import quote_plus
+# Removed unused import 'quote_plus'
 
 try:
     from src.apis.base_api import BaseAPIClient
     from src.utils.http_client import HTTPClient
-    from src.utils import config_loader
+    # Removed unused import 'config_loader'
 except ImportError:
     logging.basicConfig(level=logging.WARNING)
     logging.warning("Fallo al importar módulos de src en jobicy_client...")
 
     class BaseAPIClient:
-        def __init__(self, source_name, http_client, config): pass
-        def _get_api_key(self, suffix): return None
-        def get_standard_job_dict(self): return {}
+        def __init__(self, source_name, http_client, config):
+            self.source_name = source_name
+            self.http_client = http_client
+            self.config = config
+
+        def _get_api_key(self, suffix):
+            # Placeholder implementation for '_get_api_key'
+            return f"dummy_key_for_{suffix}"
+
+        def get_standard_job_dict(self):
+            return {}
     class HTTPClient: pass
     class config_loader:
         @staticmethod
@@ -47,11 +55,18 @@ class JobicyClient(BaseAPIClient):
         if not date_str or not isinstance(date_str, str):
             return None
         try:
-            dt_obj = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-            return dt_obj.strftime('%Y-%m-%d')
-        except ValueError:
-            logger.warning(f"[{self.source_name}] No se pudo parsear fecha '{date_str}'")
-            return None
+            return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+    def _build_api_url(self, keywords: List[str]) -> str:
+        if not keywords:
+            logger.warning(f"[{self.source_name}] No keywords provided, using default API URL.")
+            return self.api_url_base
+        try:
+            # Example logic to use keywords in URL construction
+            query_params = "&".join([f"keyword={keyword}" for keyword in keywords])
+            return f"{self.api_url_base}?{query_params}"
+        except Exception as e:
+            logger.error(f"[{self.source_name}] Error inesperado: {e}")
+            return self.api_url_base
         except Exception as e:
             logger.error(f"[{self.source_name}] Error parseando fecha '{date_str}': {e}")
             return None
