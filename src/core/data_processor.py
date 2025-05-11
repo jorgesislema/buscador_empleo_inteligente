@@ -22,8 +22,8 @@ def _clean_text(text: Optional[str]) -> Optional[str]:
     if text is None:
         return None
     if not isinstance(text, str):
-        logger.warning(f"Se esperaba str para limpiar, pero se recibió {type(text)}. Se devuelve como está.")
-        return text
+        logger.warning(f"Se esperaba str para limpiar, pero se recibió {type(text)}. Se convierte a str.")
+        text = str(text)
     try:
         text = html.unescape(text)
         text = re.sub(r'<[^>]+>', '', text)
