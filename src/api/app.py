@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # /src/api/app.py
 
 """
@@ -9,13 +8,12 @@ a los datos recopilados por el buscador de empleo.
 """
 
 from flask import Flask, jsonify, request, abort
-from flask_cors import CORS
+from flask import Flask, jsonify, request
 import sqlite3
 import logging
 from pathlib import Path
 import sys
 import json
-from datetime import datetime, timedelta
 
 # Configuración de rutas para importaciones
 project_root = Path(__file__).parent.parent.parent
@@ -24,7 +22,6 @@ sys.path.insert(0, str(project_root))
 from src.utils import config_loader, logging_config
 from src.persistence.database_manager import DatabaseManager
 from src.main import run_job_search_pipeline
-
 # Configuración de logging
 logging_config.setup_logging()
 logger = logging.getLogger(__name__)
