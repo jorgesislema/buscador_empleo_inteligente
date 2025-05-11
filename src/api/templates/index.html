@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Empleo Inteligente</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .job-card {
+            transition: transform 0.2s;
+        }
+        .job-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .skill-badge {
+            background-color: #e9ecef;
+            color: #495057;
+            padding: 5px 10px;
+            border-radius: 20px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+        .match-badge {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+        .loader {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: #0d6efd;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-search me-2"></i>
+                Buscador de Empleo Inteligente
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" data-view="search">Buscar Ofertas</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-view="recommendations">Recomendaciones</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-view="stats">Estadísticas</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Vista de Búsqueda -->
+        <div id="search-view">
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">Buscar Ofertas de Empleo</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="search-input" 
+                                               placeholder="Ingresa palabras clave (ej: python remote)">
+                                        <button class="btn btn-primary" id="search-btn">
+                                            <i class="bi bi-search me-1"></i> Buscar
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="search-source">
+                                        <option value="">Todas las fuentes</option>
+                                        <!-- Se cargará dinámicamente -->
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="search-days">
+                                        <option value="">Cualquier fecha</option>
+                                        <option value="7">Últimos 7 días</option>
+                                        <option value="15">Últimos 15 días</option>
+                                        <option value="30">Últimos 30 días</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="search-results" class="mb-4">
+                <!-- Aquí se cargarán los resultados de búsqueda -->
+                <div class="text-center py-5">
+                    <i class="bi bi-search" style="font-size: 3rem; color: #ccc;"></i>
+                    <p class="lead mt-3">Utiliza el buscador para encontrar ofertas de empleo</p>
+                </div>
+            </div>
+            
+            <div id="pagination" class="d-flex justify-content-center mb-4">
+                <!-- Paginación -->
+            </div>
+        </div>
+        
+        <!-- Vista de Recomendaciones -->
+        <div id="recommendations-view" class="d-none">
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title mb-3">Recomendaciones Personalizadas</h5>
+                            <p class="card-text">Ingresa tus habilidades para recibir recomendaciones de ofertas que se ajusten a tu perfil.</p>
+                            
+                            <div class="row">
+                                <div class="col-md-9">
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="skill-input" 
+                                               placeholder="Añadir habilidad (ej: python)">
+                                        <button class="btn btn-outline-secondary" id="add-skill-btn">
+                                            <i class="bi bi-plus"></i> Añadir
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <button class="btn btn-primary w-100" id="get-recommendations-btn" disabled>
+                                        <i class="bi bi-lightning me-1"></i> Obtener Recomendaciones
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="skills-container" class="mt-3">
+                                <!-- Aquí se mostrarán las habilidades añadidas -->
+                                <p class="text-muted fst-italic">No hay habilidades añadidas</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="recommendations-results" class="mb-4">
+                <!-- Aquí se cargarán las recomendaciones -->
+            </div>
+        </div>
+        
+        <!-- Vista de Estadísticas -->
+        <div id="stats-view" class="d-none">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Ofertas por Fuente</h5>
+                            <canvas id="sources-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Tendencia Diaria</h5>
+                            <canvas id="daily-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Top 10 Ubicaciones</h5>
+                            <canvas id="locations-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Top 10 Empresas</h5>
+                            <canvas id="companies-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="footer mt-auto py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">© 2025 Buscador de Empleo Inteligente</span>
+        </div>
+    </footer>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Configuración global
+        const API_URL = 'http://localhost:5000/api';
+        let currentPage = 1;
+        let totalPages = 1;
+        let currentQuery = '';
+        let userSkills = [];
+        let charts = {};
+        
+        // Elementos DOM
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        const searchSource = document.getElementById('search-source');
+        const searchDays = document.getElementById('search-days');
+        const searchResults = document.getElementById('search-results');
+        const pagination = document.getElementById('pagination');
+        
+        const skillInput = document.getElementById('skill-input');
+        const addSkillBtn = document.getElementById('add-skill-btn');
+        const getRecommendationsBtn = document.getElementById('get-recommendations-btn');
+        const skillsContainer = document.getElementById('skills-container');
+        const recommendationsResults = document.getElementById('recommendations-results');
+        
+        // Vistas
+        const views = {
+            search: document.getElementById('search-view'),
+            recommendations: document.getElementById('recommendations-view'),
+            stats: document.getElementById('stats-view')
+        };
+        
+        // Navegación
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const viewName = e.target.getAttribute('data-view');
+                showView(viewName);
+                
+                // Actualizar navegación activa
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                // Cargar datos específicos de la vista
+                if (viewName === 'stats' && !charts.sources) {
+                    loadStats();
+                }
+            });
+        });
+        
+        // Función para mostrar una vista
+        function showView(viewName) {
+            Object.keys(views).forEach(key => {
+                views[key].classList.add('d-none');
+            });
+            views[viewName].classList.remove('d-none');
+        }
+        
+        // Inicialización
+        function init() {
+            // Cargar fuentes para el dropdown
+            loadSources();
+            
+            // Event listeners
+            searchBtn.addEventListener('click', () => {
+                currentPage = 1;
+                searchJobs();
+            });
+            
+            searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    currentPage = 1;
+                    searchJobs();
+                }
+            });
+            
+            addSkillBtn.addEventListener('click', addSkill);
+            skillInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addSkill();
+                }
+            });
+            
+            getRecommendationsBtn.addEventListener('click', getRecommendations);
+        }
+        
+        // Cargar fuentes para el dropdown
+        async function loadSources() {
+            try {
+                const response = await fetch(`${API_URL}/stats`);
+                const data = await response.json();
+                
+                // Llenar el dropdown de fuentes
+                searchSource.innerHTML = '<option value="">Todas las fuentes</option>';
+                data.by_source.forEach(source => {
+                    const option = document.createElement('option');
+                    option.value = source.fuente;
+                    option.textContent = `${source.fuente} (${source.count})`;
+                    searchSource.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error al cargar fuentes:', error);
+            }
+        }
+        
+        // Buscar ofertas
+        async function searchJobs() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+            
+            currentQuery = query;
+            const source = searchSource.value;
+            const days = searchDays.value;
+            
+            // Mostrar loader
+            searchResults.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="loader mb-3"></div>
+                    <p>Buscando ofertas...</p>
+                </div>
+            `;
+            
+            try {
+                let url = `${API_URL}/search?q=${encodeURIComponent(query)}&page=${currentPage}`;
+                if (source) url += `&source=${encodeURIComponent(source)}`;
+                if (days) url += `&days=${days}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.results && data.results.length > 0) {
+                    displaySearchResults(data);
+                } else {
+                    searchResults.innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="bi bi-emoji-frown" style="font-size: 3rem; color: #ccc;"></i>
+                            <p class="lead mt-3">No se encontraron ofertas para "${query}"</p>
+                        </div>
+                    `;
+                    pagination.innerHTML = '';
+                }
+            } catch (error) {
+                console.error('Error al buscar ofertas:', error);
+                searchResults.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error al buscar ofertas. Por favor, intenta de nuevo más tarde.
+                    </div>
+                `;
+            }
+        }
+        
+        // Mostrar resultados de búsqueda
+        function displaySearchResults(data) {
+            const { results, total, page, per_page, total_pages } = data;
+            
+            totalPages = total_pages;
+            currentPage = page;
+            
+            // Crear tarjetas de ofertas
+            let html = `
+                <p class="text-muted mb-3">Se encontraron ${total} resultados para "${currentQuery}"</p>
+                <div class="row row-cols-1 row-cols-md-2 g-4">
+            `;
+            
+            results.forEach(job => {
+                html += createJobCard(job);
+            });
+            
+            html += '</div>';
+            searchResults.innerHTML = html;
+            
+            // Actualizar paginación
+            updatePagination();
+        }
+        
+        // Crear tarjeta de oferta de trabajo
+        function createJobCard(job) {
+            const fecha = job.fecha_publicacion ? new Date(job.fecha_publicacion).toLocaleDateString() : 'Fecha no disponible';
+            
+            return `
+                <div class="col">
+                    <div class="card h-100 job-card">
+                        <div class="card-body">
+                            <h5 class="card-title">${job.titulo || 'Sin título'}</h5>
+                            <h6 class="card-subtitle mb-2 text-muted">${job.empresa || 'Empresa no especificada'}</h6>
+                            
+                            <div class="my-2">
+                                <i class="bi bi-geo-alt-fill text-secondary"></i> 
+                                ${job.ubicacion || 'Ubicación no especificada'}
+                            </div>
+                            
+                            <div class="my-2">
+                                <i class="bi bi-calendar-date text-secondary"></i> 
+                                ${fecha}
+                            </div>
+                            
+                            <div class="my-2">
+                                <i class="bi bi-tag-fill text-secondary"></i> 
+                                ${job.fuente || 'Fuente desconocida'}
+                            </div>
+                            
+                            ${job.matching_skills ? `
+                                <div class="mt-3">
+                                    <p class="mb-2 fw-bold">Habilidades coincidentes:</p>
+                                    <div>
+                                        ${job.matching_skills.map(skill => 
+                                            `<span class="skill-badge match-badge">${skill}</span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <a href="${job.url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-box-arrow-up-right"></i> Ver oferta
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Actualizar paginación
+        function updatePagination() {
+            if (totalPages <= 1) {
+                pagination.innerHTML = '';
+                return;
+            }
+            
+            let html = '<ul class="pagination">';
+            
+            // Botón anterior
+            if (currentPage > 1) {
+                html += `
+                    <li class="page-item">
+                        <a class="page-link" href="#" data-page="${currentPage - 1}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                `;
+            } else {
+                html += `
+                    <li class="page-item disabled">
+                        <span class="page-link">
+                            <i class="bi bi-chevron-left"></i>
+                        </span>
+                    </li>
+                `;
+            }
+            
+            // Números de página
+            const maxPages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxPages / 2));
+            let endPage = Math.min(totalPages, startPage + maxPages - 1);
+            
+            if (endPage - startPage + 1 < maxPages) {
+                startPage = Math.max(1, endPage - maxPages + 1);
+            }
+            
+            for (let i = startPage; i <= endPage; i++) {
+                if (i === currentPage) {
+                    html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+                } else {
+                    html += `<li class="page-item"><a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
+                }
+            }
+            
+            // Botón siguiente
+            if (currentPage < totalPages) {
+                html += `
+                    <li class="page-item">
+                        <a class="page-link" href="#" data-page="${currentPage + 1}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                `;
+            } else {
+                html += `
+                    <li class="page-item disabled">
+                        <span class="page-link">
+                            <i class="bi bi-chevron-right"></i>
+                        </span>
+                    </li>
+                `;
+            }
+            
+            html += '</ul>';
+            pagination.innerHTML = html;
+            
+            // Añadir event listeners a los botones de paginación
+            document.querySelectorAll('.pagination .page-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const page = parseInt(e.target.closest('.page-link').getAttribute('data-page'));
+                    if (page) {
+                        currentPage = page;
+                        searchJobs();
+                        // Scroll al principio de los resultados
+                        searchResults.scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+            });
+        }
+        
+        // Añadir habilidad
+        function addSkill() {
+            const skill = skillInput.value.trim().toLowerCase();
+            if (!skill) return;
+            
+            // Verificar si ya existe
+            if (userSkills.includes(skill)) {
+                skillInput.value = '';
+                return;
+            }
+            
+            // Añadir a la lista
+            userSkills.push(skill);
+            
+            // Actualizar UI
+            updateSkillsUI();
+            
+            // Limpiar input
+            skillInput.value = '';
+            skillInput.focus();
+        }
+        
+        // Actualizar UI de habilidades
+        function updateSkillsUI() {
+            if (userSkills.length === 0) {
+                skillsContainer.innerHTML = '<p class="text-muted fst-italic">No hay habilidades añadidas</p>';
+                getRecommendationsBtn.disabled = true;
+                return;
+            }
+            
+            let html = '';
+            userSkills.forEach(skill => {
+                html += `
+                    <span class="skill-badge">
+                        ${skill}
+                        <i class="bi bi-x-circle ms-1" style="cursor: pointer;" 
+                           onclick="removeSkill('${skill}')"></i>
+                    </span>
+                `;
+            });
+            
+            skillsContainer.innerHTML = html;
+            getRecommendationsBtn.disabled = false;
+        }
+        
+        // Eliminar habilidad
+        function removeSkill(skill) {
+            userSkills = userSkills.filter(s => s !== skill);
+            updateSkillsUI();
+        }
+        
+        // Obtener recomendaciones
+        async function getRecommendations() {
+            if (userSkills.length === 0) return;
+            
+            // Mostrar loader
+            recommendationsResults.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="loader mb-3"></div>
+                    <p>Obteniendo recomendaciones personalizadas...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch(`${API_URL}/recommendations`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        skills: userSkills,
+                        limit: 20
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.recommendations && data.recommendations.length > 0) {
+                    displayRecommendations(data);
+                } else {
+                    recommendationsResults.innerHTML = `
+                        <div class="text-center py-5">
+                            <i class="bi bi-emoji-frown" style="font-size: 3rem; color: #ccc;"></i>
+                            <p class="lead mt-3">No se encontraron recomendaciones para tus habilidades</p>
+                            <p class="text-muted">Intenta añadir más habilidades o diferentes términos</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error al obtener recomendaciones:', error);
+                recommendationsResults.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error al obtener recomendaciones. Por favor, intenta de nuevo más tarde.
+                    </div>
+                `;
+            }
+        }
+        
+        // Mostrar recomendaciones
+        function displayRecommendations(data) {
+            const { recommendations, count, skills } = data;
+            
+            let html = `
+                <div class="alert alert-success">
+                    <i class="bi bi-lightning-fill me-2"></i>
+                    Se encontraron ${count} recomendaciones basadas en tus ${skills.length} habilidades
+                </div>
+                <div class="row row-cols-1 row-cols-md-2 g-4">
+            `;
+            
+            recommendations.forEach(rec => {
+                html += createJobCard(rec);
+            });
+            
+            html += '</div>';
+            recommendationsResults.innerHTML = html;
+        }
+        
+        // Cargar estadísticas
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/stats`);
+                const data = await response.json();
+                
+                createSourcesChart(data.by_source);
+                createLocationsChart(data.top_locations);
+                createCompaniesChart(data.top_companies);
+                createDailyChart(data.daily_trend);
+            } catch (error) {
+                console.error('Error al cargar estadísticas:', error);
+            }
+        }
+        
+        // Crear gráfico de fuentes
+        function createSourcesChart(sources) {
+            const ctx = document.getElementById('sources-chart').getContext('2d');
+            
+            // Preparar datos
+            const labels = sources.map(s => s.fuente);
+            const values = sources.map(s => s.count);
+            
+            // Crear gráfico
+            charts.sources = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: values,
+                        backgroundColor: [
+                            '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
+                            '#5a5c69', '#858796', '#6f42c1', '#20c9a6', '#fd7e14'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Crear gráfico de ubicaciones
+        function createLocationsChart(locations) {
+            const ctx = document.getElementById('locations-chart').getContext('2d');
+            
+            // Preparar datos
+            const labels = locations.map(l => l.ubicacion || 'No especificada');
+            const values = locations.map(l => l.count);
+            
+            // Crear gráfico
+            charts.locations = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Ofertas',
+                        data: values,
+                        backgroundColor: '#4e73df'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Crear gráfico de empresas
+        function createCompaniesChart(companies) {
+            const ctx = document.getElementById('companies-chart').getContext('2d');
+            
+            // Preparar datos
+            const labels = companies.map(c => c.empresa || 'No especificada');
+            const values = companies.map(c => c.count);
+            
+            // Crear gráfico
+            charts.companies = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Ofertas',
+                        data: values,
+                        backgroundColor: '#1cc88a'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Crear gráfico de tendencia diaria
+        function createDailyChart(dailyData) {
+            const ctx = document.getElementById('daily-chart').getContext('2d');
+            
+            // Preparar datos
+            const labels = dailyData.map(d => {
+                const date = new Date(d.date);
+                return date.toLocaleDateString();
+            });
+            const values = dailyData.map(d => d.count);
+            
+            // Crear gráfico
+            charts.daily = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Ofertas',
+                        data: values,
+                        borderColor: '#36b9cc',
+                        backgroundColor: 'rgba(54, 185, 204, 0.1)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Inicializar app
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
