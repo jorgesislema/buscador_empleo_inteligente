@@ -7,9 +7,17 @@ Establece métodos comunes como carga de API keys, nombre de fuente y estructura
 
 import os
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Protocol
+
+class HTTPClientProtocol(Protocol):
+    def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+        ...
+    
+    def close(self) -> None:
+        ...
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 class BaseAPIClient:
     def __init__(self, source_name: str, http_client: Any, config: Optional[Dict[str, Any]] = None):

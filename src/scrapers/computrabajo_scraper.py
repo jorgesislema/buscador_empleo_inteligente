@@ -80,10 +80,30 @@ class ComputrabajoScraper(BaseScraper):
             logger.error(f"[{self.source_name}] No hay base_url configurada.")
             return None
 
-        # Limitar keywords
-        keywords_to_use = keywords[:MAX_KEYWORDS_IN_URL_COMPUTRABAJO]
-        keyword_query = ' '.join(keywords_to_use).strip()
-
+        # Limitar y seleccionar keywords más relevantes para reducir restricciones
+        # Computrabajo funciona mejor con pocas keywords específicas
+        relevant_tech_keywords = ["python", "javascript", "java", "react", "angular", "vue", 
+                                 "node", "django", "flask", "data science", "machine learning",
+                                 "ai", "desarrollador", "programador", "developer"]
+        
+        filtered_keywords = []
+        # Primero añadir keywords técnicas si están presentes
+        for kw in relevant_tech_keywords:
+            for user_kw in keywords:
+                if kw.lower() in user_kw.lower():
+                    filtered_keywords.append(kw)
+                    break
+                    
+        # Asegurar que tengamos algunas keywords, incluso si no son técnicas
+        if not filtered_keywords and keywords:
+            filtered_keywords = keywords[:3]  # Solo usar las primeras 3 keywords
+            
+        # Si no hay ninguna keyword después del filtrado, usar un término genérico de tecnología
+        if not filtered_keywords:
+            filtered_keywords = ["desarrollador"]
+            
+        keyword_query = ' '.join(filtered_keywords).strip()
+        
         # Determinar valor de ubicación
         loc_lower = (location or '').strip().lower()
         is_remote = 'remoto' in loc_lower or 'remote' in loc_lower
@@ -94,6 +114,8 @@ class ComputrabajoScraper(BaseScraper):
                 keyword_query += ' remoto'
         elif loc_lower == 'quito':
             loc_value = 'Pichincha'
+        elif loc_lower == 'guayaquil':
+            loc_value = 'Guayas'
         elif location:
             loc_value = location
 
@@ -109,7 +131,9 @@ class ComputrabajoScraper(BaseScraper):
         base_search_url = f"{self.base_url}/ofertas-de-trabajo/"
         if params:
             query_string = '&'.join(f"{k}={v}" for k, v in params.items())
-            return f"{base_search_url}?{query_string}"
+            url = f"{base_search_url}?{query_string}"
+            logger.debug(f"[{self.source_name}] URL de búsqueda construida: {url}")
+            return url
         return base_search_url
 
     def _parse_relative_date(self, date_str: Optional[str]) -> Optional[str]:
@@ -156,46 +180,53 @@ class ComputrabajoScraper(BaseScraper):
                 logger.warning(f"[{self.source_name}] No se parseó HTML página {page}.")
                 break
 
-            cards = soup.select('article.box_offer')
+            # Selectores actualizados para el sitio actual de Computrabajo
+            # Probamos varios selectores para ser más robustos ante cambios
+            cards = soup.select('article.box_offer, article.iO, div.iO, div.bRS')
             if not cards:
                 logger.info(f"[{self.source_name}] No se encontraron ofertas en página {page}.")
                 break
 
             for card in cards:
                 oferta = self.get_standard_job_dict()
-                # Título y URL
-                title_el = card.select_one('p.title a, a.js-o-link')
+                # Título y URL - selectores actualizados
+                title_el = card.select_one('p.title a, a.js-o-link, h1.it-title, h3.tO a')
                 oferta['titulo'] = self._safe_get_text(title_el)
                 href = self._safe_get_attribute(title_el, 'href')
                 oferta['url'] = self._build_url(href)
 
-                # Empresa
-                comp_el = card.select_one('div.fs16 a, span.d-block a')
+                # Empresa - selectores actualizados
+                comp_el = card.select_one('div.fs16 a, span.d-block a, p.it-company, p.w_100 a')
                 oferta['empresa'] = self._safe_get_text(comp_el)
 
-                # Ubicación
-                loc_el = card.select_one('p span[title], span.location_pub')
+                # Ubicación - selectores actualizados
+                loc_el = card.select_one('p span[title], span.location_pub, p.w_100 span.pB5')
                 oferta['ubicacion'] = self._safe_get_text(loc_el)
 
-                # Fecha
-                date_el = card.select_one('p.fs13 span, span.date')
+                # Fecha - selectores actualizados 
+                date_el = card.select_one('p.fs13 span, span.date, p.fs13.mb10 span')
                 date_text = self._safe_get_text(date_el)
                 oferta['fecha_publicacion'] = self._parse_relative_date(date_text)
 
-                # Descripción (detalle)
-                oferta['descripcion'] = None
-                if oferta['url']:
-                    detail_html = self._fetch_html(oferta['url'])
-                    detail_soup = self._parse_html(detail_html) if detail_html else None
-                    if detail_soup:
-                        desc_el = detail_soup.select_one('div[itemprop="description"], div._description_extend')
-                        oferta['descripcion'] = self._safe_get_text(desc_el)
-
+                # Si no pudimos obtener la descripción en la lista, intentamos obtenerla de la página de detalle
                 if oferta['titulo'] and oferta['url']:
+                    try:
+                        # A veces extraer la descripción puede fallar, pero queremos mantener el resto de la oferta
+                        detail_html = self._fetch_html(oferta['url'])
+                        detail_soup = self._parse_html(detail_html) if detail_html else None
+                        if detail_soup:
+                            # Selectores actualizados para la descripción
+                            desc_el = detail_soup.select_one('div[itemprop="description"], div._description_extend, div.panel-body, div.bWord')
+                            oferta['descripcion'] = self._safe_get_text(desc_el)
+                    except Exception as e:
+                        logger.warning(f"[{self.source_name}] Error obteniendo descripción para {oferta['url']}: {e}")
+                        oferta['descripcion'] = None
+                    
+                    # Añadir la oferta incluso si no tiene descripción
                     all_offers.append(oferta)
-
-            # Paginación
-            next_link = soup.select_one('a[rel="next"]')
+                    
+            # Paginación - selectores actualizados
+            next_link = soup.select_one('a[rel="next"], a.paginas:contains("Siguiente"), li.siguiente a')
             if next_link:
                 page += 1
             else:

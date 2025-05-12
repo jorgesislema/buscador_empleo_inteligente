@@ -27,7 +27,6 @@ import sys
 import argparse # Para manejar argumentos de línea de comandos como --run-now
 import logging
 from pathlib import Path
-import time # Podríamos necesitarlo si hay errores de importación
 
 # --- Asegurar que podamos importar desde 'src' ---
 # Añadimos la carpeta raíz del proyecto (un nivel arriba de 'scripts') al PYTHONPATH
@@ -40,7 +39,6 @@ try:
     from src.scheduler.job_scheduler import start_scheduler
     # También importamos el setup de logging por si falla antes de que start_scheduler lo haga
     from src.utils import logging_config
-except ImportError as e:
     print(f"ERROR CRÍTICO: No se pudieron importar módulos necesarios (start_scheduler o logging_config): {e}", file=sys.stderr)
     print("Verifica que la estructura del proyecto sea correcta y que te encuentras en la carpeta raíz.", file=sys.stderr)
     sys.exit(1)

@@ -46,7 +46,15 @@ class JoobleClient(BaseAPIClient):
         if not job_data:
             return None
 
-        oferta = self.get_standard_job_dict()
+        oferta = {
+            'titulo': None,
+            'empresa': None,
+            'ubicacion': None,
+            'descripcion': None,
+            'fecha_publicacion': None,
+            'url': None,
+            'salario': None
+        }
         oferta['titulo'] = job_data.get('title')
         oferta['empresa'] = job_data.get('company')
         oferta['ubicacion'] = job_data.get('location')

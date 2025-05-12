@@ -30,7 +30,7 @@ class ArbeitnowClient(BaseAPIClient):
         if timestamp_ms is None:
             return None
         try:
-            dt_object = datetime.utcfromtimestamp(int(timestamp_ms) / 1000)
+            dt_object = datetime.fromtimestamp(int(timestamp_ms) / 1000, tz=datetime.timezone.utc)
             return dt_object.strftime('%Y-%m-%d')
         except (ValueError, TypeError) as e:
             logger.warning(f"[{self.source_name}] No se pudo parsear el timestamp: '{timestamp_ms}', error: {e}")
@@ -67,10 +67,15 @@ class ArbeitnowClient(BaseAPIClient):
             logger.warning(f"[{self.source_name}] Oferta omitida por faltar título o URL. Slug: {job_data.get('slug', 'N/A')}")
             return None
 
-    def fetch_jobs(self, search_params: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def fetch_jobs(self, search_params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         logger.info(f"[{self.source_name}] Obteniendo trabajos desde API Arbeitnow: {self.API_ENDPOINT}")
         all_job_offers = []
         current_page = 1
+
+        # Podemos usar search_params en un futuro para filtrar resultados
+        # Por ahora, lo registramos pero no lo usamos en la API
+        if search_params:
+            logger.debug(f"[{self.source_name}] Parámetros de búsqueda recibidos: {search_params}")
 
         while current_page <= MAX_PAGES_TO_FETCH_ARBEITNOW:
             logger.info(f"[{self.source_name}] Procesando página {current_page}...")
@@ -118,13 +123,8 @@ if __name__ == '__main__':
     http_client = HTTPClient()
     client = ArbeitnowClient(http_client=http_client)
 
-    search_params = {
-        'keywords': ['data', 'python'],
-        'location': 'Remote'
-    }
-
     print("\n--- Iniciando prueba de ArbeitnowClient ---")
-    ofertas = client.fetch_jobs(search_params)
+    ofertas = client.fetch_jobs()
     print(f"\nSe obtuvieron {len(ofertas)} ofertas.")
 
     if ofertas:
