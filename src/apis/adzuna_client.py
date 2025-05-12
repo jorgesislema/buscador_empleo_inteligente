@@ -146,9 +146,16 @@ class AdzunaClient(BaseAPIClient):
         logger.info(f"[{self.source_name}] Iniciando búsqueda API multi-país Adzuna...")
         all_job_offers = []
         keywords = search_params.get('keywords', [])
+        location = search_params.get('location')
+
+        # Usar solo los primeros 5 keywords para evitar búsquedas demasiado restrictivas
+        if keywords and len(keywords) > 5:
+            keywords = keywords[:5]
+            logger.info(f"[{self.source_name}] Limitando a 5 keywords para búsqueda: {keywords}")
+
         try:
             config = config_loader.get_config() or {}
-            locations_config = config.get('locations', []) or []
+            locations_config = [location] if location else (config.get('locations', []) or [])
             if not locations_config: locations_config = [self.config.get('default_location', 'United Kingdom')]
         except Exception as e: logger.error(f"[{self.source_name}] Error cargando config: {e}"); return []
 
@@ -162,16 +169,32 @@ class AdzunaClient(BaseAPIClient):
                 logger.info(f"[{self.source_name}][{country_code}] Procesando página {current_page}...")
                 api_url = f"{self.base_api_url}/{country_code}/search/{current_page}"
                 where_param = locations_config[0] if locations_config else ""
+                
+                # Construir el parámetro 'what' de manera más simple y con menos restricciones
+                what_param = ' '.join(keywords[:3]) if keywords else "python data"
+                
                 params = {
-                    'app_id': self.app_id, 'app_key': self.app_key,
+                    'app_id': self.app_id, 
+                    'app_key': self.app_key,
                     'results_per_page': self.results_per_page,
-                    'what': ' '.join(keywords), 'where': where_param,
+                    'what': what_param,
                     'content-type': 'application/json'
                 }
+                
+                # Solo agregar el parámetro 'where' si no es para búsqueda global/remota
+                if where_param and where_param.lower() not in ['remote', 'remoto', 'global', 'anywhere']:
+                    params['where'] = where_param
+                    
                 params = {k: v for k, v in params.items() if v}
                 logger.debug(f"[{self.source_name}][{country_code}] GET {api_url} | Params (sin keys): { {k:v for k,v in params.items() if k not in ['app_id','app_key']} }")
 
-                response = self.http_client.get(api_url, params=params)
+                # Agregar headers específicos para Adzuna
+                headers = {
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
+                }
+                
+                response = self.http_client.get(api_url, params=params, headers=headers)
 
                 if not response or response.status_code != 200:
                     if response: # Loguear error si hubo respuesta pero no fue 200
@@ -183,7 +206,19 @@ class AdzunaClient(BaseAPIClient):
                     break # Siguiente país
 
                 try:
+                    # Verificar el tamaño y contenido de la respuesta para diagnóstico
+                    response_size = len(response.text)
+                    if response_size < 100:
+                        logger.warning(f"[{self.source_name}][{country_code}] Respuesta muy pequeña ({response_size} bytes): {response.text}")
+                        
                     api_data = response.json()
+                    
+                    # Verificar si hay mensajes de error en la respuesta
+                    if "error" in api_data:
+                        error_msg = api_data.get("error", {}).get("message", "Sin detalles")
+                        logger.error(f"[{self.source_name}][{country_code}] Error en respuesta API: {error_msg}")
+                        break
+                    
                     jobs_list = api_data.get('results')
 
                     if jobs_list and isinstance(jobs_list, list):
@@ -203,6 +238,7 @@ class AdzunaClient(BaseAPIClient):
                          break
                     else:
                          logger.error(f"[{self.source_name}][{country_code}] Respuesta JSON Adzuna no contiene lista en la clave esperada ('results').")
+                         logger.debug(f"[{self.source_name}][{country_code}] Claves disponibles en respuesta: {list(api_data.keys())}")
                          break
                 except Exception as e:
                     logger.exception(f"[{self.source_name}][{country_code}] Error procesando respuesta: {e}")
@@ -213,7 +249,3 @@ class AdzunaClient(BaseAPIClient):
         # Fin for países
         logger.info(f"[{self.source_name}] Búsqueda API multi-país finalizada. {len(all_job_offers)} ofertas totales.")
         return all_job_offers
-
-# --- Ejemplo de uso ---
-# (El bloque if __name__ == '__main__': es igual al anterior)
-# ... (pegar bloque __main__ anterior, asegurando importar las clases necesarias) ...

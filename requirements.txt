@@ -7,16 +7,30 @@ PyYAML>=6.0         # La usamos en config_loader.py para leer nuestro settings.y
 python-dotenv>=1.0.0 # La necesitamos para cargar las variables del archivo .env (nuestras API keys!).
 
 # --- Para Hacer Peticiones Web (APIs y Scrapers) ---
-requests>=2.28.0    # ¡El pan de cada día! Con esta librería hacemos las llamadas HTTP a las APIs y descargamos el HTML de las páginas web.
+requests>=2.30.0    # ¡El pan de cada día! Con esta librería hacemos las llamadas HTTP a las APIs y descargamos el HTML de las páginas web.
+requests-html>=0.10.0 # Extensión útil para manejar JS y elementos dinámicos en páginas
 
 # --- Para Parsear HTML (Web Scraping) ---
-beautifulsoup4>=4.11.0 # La estrella para navegar y extraer datos del HTML que descargamos con requests. Facilita mucho la vida.
-lxml>=4.9.0           # Este es el 'parser' que beautifulsoup suele usar por debajo. Es rápido y robusto. ¡Buena combinación!
+beautifulsoup4>=4.12.2 # La estrella para navegar y extraer datos del HTML que descargamos con requests. Facilita mucho la vida.
+lxml>=4.9.3           # Este es el 'parser' que beautifulsoup suele usar por debajo. Es rápido y robusto. ¡Buena combinación!
+selenium>=4.10.0      # Para sitios con JavaScript más complejo o protecciones anti-scraping
+webdriver-manager>=3.8.6 # Complemento para Selenium que facilita la gestión de webdrivers
 
-# --- Para Manipulación de Datos (Opcional pero muy útil) ---
-pandas>=1.5.0         # Aunque quizás no la usemos al principio, Pandas es casi indispensable si queremos analizar los datos, guardarlos fácil en CSV, o hacer limpiezas complejas. La añadimos ya.
+# --- Para Manipulación de Datos---
+pandas>=2.0.3         # Para análisis y manipulación de datos, esencial para limpieza y exportación
+numpy>=1.24.0         # Base para operaciones numéricas
+dateparser>=1.1.8     # Librería especializada para parsear fechas en cualquier formato/idioma
 
-# --- Para Programar Tareas (Scheduler Opcional) ---
-schedule>=1.1.0       # Si queremos que el script se ejecute automáticamente cada cierto tiempo (ej. una vez al día), esta librería es sencilla y útil.
+# --- Para Programar Tareas (Scheduler) ---
+schedule>=1.2.0       # Para ejecución automática y programada de tareas
 
-python-dotenv
+# --- Para Procesamiento de Datos ---
+joblib>=1.3.2         # Para paralelización y caching
+tqdm>=4.66.1          # Barras de progreso para operaciones largas
+
+# --- Base de Datos y Persistencia ---
+SQLAlchemy>=2.0.0     # ORM para manejo de base de datos más sofisticado (opcional)
+
+# --- Para Detección de Idioma y Procesamiento de Texto ---
+langdetect>=1.0.9     # Para detectar el idioma de las descripciones
+nltk>=3.8.1           # Para procesamiento de texto avanzado

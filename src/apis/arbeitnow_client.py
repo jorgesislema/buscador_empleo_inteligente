@@ -30,7 +30,9 @@ class ArbeitnowClient(BaseAPIClient):
         if timestamp_ms is None:
             return None
         try:
-            dt_object = datetime.fromtimestamp(int(timestamp_ms) / 1000, tz=datetime.timezone.utc)
+            # Solución compatible con todas las versiones de Python
+            # No usamos timezone ya que puede no estar disponible en todas las versiones
+            dt_object = datetime.fromtimestamp(int(timestamp_ms) / 1000)
             return dt_object.strftime('%Y-%m-%d')
         except (ValueError, TypeError) as e:
             logger.warning(f"[{self.source_name}] No se pudo parsear el timestamp: '{timestamp_ms}', error: {e}")

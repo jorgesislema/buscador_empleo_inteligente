@@ -1,0 +1,736 @@
+# -*- coding: utf-8 -*-
+# /src/super_pipeline.py
+
+"""
+Versión super mejorada del pipeline de búsqueda de empleo, integrando todas las mejoras:
+- Soporte para scrapers mejorados (LinkedIn, etc.)
+- Cliente HTTP con manejo robusto de errores
+- Mejor paralelismo y gestión de recursos
+- Estadísticas detalladas
+- Estrategias anti-bloqueo avanzadas
+"""
+
+import logging
+import sys
+import os
+import traceback
+import time
+import json
+import random
+import concurrent.futures
+from datetime import datetime
+from pathlib import Path
+from typing import List, Dict, Any, Tuple, Optional, Union
+
+# Configurar logger
+logger = logging.getLogger(__name__)
+
+# Asegurar que podamos importar desde el directorio raíz
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
+try:
+    # Importaciones básicas
+    from src.utils import config_loader, logging_config
+    from src.persistence.database_manager import DatabaseManager
+    from src.persistence import file_exporter
+    from src.core.job_filter import JobFilter
+    from src.core import data_processor
+    from src.apis.base_api import BaseAPIClient
+    from src.scrapers.base_scraper import BaseScraper
+
+    # Verificar disponibilidad del cliente HTTP mejorado
+    try:
+        from src.utils.http_client_improved import ImprovedHTTPClient
+        HTTP_CLIENT_IMPROVED_AVAILABLE = True
+        HTTPClientClass = ImprovedHTTPClient
+    except ImportError:
+        from src.utils.http_client import HTTPClient
+        HTTP_CLIENT_IMPROVED_AVAILABLE = False
+        HTTPClientClass = HTTPClient
+        
+    # Verificar disponibilidad del manejador de errores mejorado
+    try:
+        from src.utils.error_handler import register_error, clear_error_registry, get_error_summary, make_search_more_robust
+        ERROR_HANDLER_AVAILABLE = True
+    except ImportError:
+        ERROR_HANDLER_AVAILABLE = False
+        # Funciones de fallback si no está disponible el error_handler
+        def register_error(*args, **kwargs): pass
+        def clear_error_registry(*args, **kwargs): pass
+        def get_error_summary(*args, **kwargs): return {}
+        def make_search_more_robust(params): return [params]
+      # Importaciones de APIs
+    from src.apis.arbeitnow_client import ArbeitnowClient
+    from src.apis.jobicy_client import JobicyClient
+    from src.apis.jooble_client import JoobleClient
+    from src.apis.remoteok_client import RemoteOkClient
+    from src.apis.huggingface_client import HuggingFaceClient# Verificar disponibilidad del scraper de LinkedIn mejorado
+    try:
+        from src.scrapers.linkedin_scraper_improved import LinkedInScraperImproved as LinkedInScraper
+        LINKEDIN_SCRAPER_IMPROVED_AVAILABLE = True
+    except ImportError:
+        from src.scrapers.linkedin_scraper import LinkedInScraper
+        LINKEDIN_SCRAPER_IMPROVED_AVAILABLE = False
+          # Verificar disponibilidad del scraper de InfoJobs mejorado
+    try:
+        from src.scrapers.infojobs_scraper_improved import InfojobsScraperImproved as InfojobsScraper
+        INFOJOBS_SCRAPER_IMPROVED_AVAILABLE = True
+    except ImportError:
+        from src.scrapers.infojobs_scraper import InfojobsScraper
+        INFOJOBS_SCRAPER_IMPROVED_AVAILABLE = False
+        
+    # Verificar disponibilidad del scraper de Computrabajo mejorado
+    try:
+        from src.scrapers.computrabajo_scraper_improved import ComputrabajoScraperImproved as ComputrabajoScraper
+        COMPUTRABAJO_SCRAPER_IMPROVED_AVAILABLE = True
+    except ImportError:
+        from src.scrapers.computrabajo_scraper import ComputrabajoScraper
+        COMPUTRABAJO_SCRAPER_IMPROVED_AVAILABLE = False
+        
+    # Verificar disponibilidad del cliente de Adzuna mejorado
+    try:
+        from src.apis.adzuna_client_improved import AdzunaClientImproved as AdzunaClient
+        ADZUNA_CLIENT_IMPROVED_AVAILABLE = True
+    except ImportError:
+        from src.apis.adzuna_client import AdzunaClient
+        ADZUNA_CLIENT_IMPROVED_AVAILABLE = False    # Importaciones de scrapers
+    from src.scrapers.bumeran_scraper import BumeranScraper
+    from src.scrapers.computrabajo_scraper import ComputrabajoScraper
+    from src.scrapers.empleosnet_scraper import EmpleosNetScraper
+    from src.scrapers.getonboard_scraper import GetonboardScraper
+    from src.scrapers.multitrabajos_scraper import MultitrabajosScraper
+    from src.scrapers.opcionempleo_scraper import OpcionempleoScraper
+    from src.scrapers.porfinempleo_scraper import PorfinempleoScraper
+    from src.scrapers.portalempleoec_scraper import PortalempleoecScraper
+    from src.scrapers.remoterocketship_scraper import RemoteRocketshipScraper
+    from src.scrapers.soyfreelancer_scraper import SoyFreelancerScraper
+    from src.scrapers.tecnoempleo_scraper import TecnoempleoScraper
+    from src.scrapers.workana_scraper import WorkanaScraper
+    from src.scrapers.wellfound_scraper import WellfoundScraper
+except ImportError as e:
+    print(f"Error CRÍTICO: No se pudieron importar módulos esenciales: {e}")
+    print("Asegúrate de que la estructura del proyecto y los __init__.py estén correctos.")
+    print("Verifica también que estás ejecutando desde la carpeta raíz del proyecto.")
+    sys.exit(1)
+
+# Mapeo de fuentes a sus clases
+SOURCE_MAP = {
+    "adzuna": {"class": AdzunaClient, "type": "apis"},
+    "arbeitnow": {"class": ArbeitnowClient, "type": "apis"},
+    "jobicy": {"class": JobicyClient, "type": "apis"},
+    "jooble": {"class": JoobleClient, "type": "apis"},
+    "remoteok": {"class": RemoteOkClient, "type": "apis"},
+    "huggingface": {"class": HuggingFaceClient, "type": "apis"},
+    "bumeran": {"class": BumeranScraper, "type": "scrapers"},
+    "computrabajo": {"class": ComputrabajoScraper, "type": "scrapers"},
+    "empleosnet": {"class": EmpleosNetScraper, "type": "scrapers"},
+    "getonboard": {"class": GetonboardScraper, "type": "scrapers"},
+    "infojobs": {"class": InfojobsScraper, "type": "scrapers"},
+    "multitrabajos": {"class": MultitrabajosScraper, "type": "scrapers"},
+    "opcionempleo": {"class": OpcionempleoScraper, "type": "scrapers"},
+    "porfinempleo": {"class": PorfinempleoScraper, "type": "scrapers"},
+    "portalempleoec": {"class": PortalempleoecScraper, "type": "scrapers"},
+    "remoterocketship": {"class": RemoteRocketshipScraper, "type": "scrapers"},
+    "soyfreelancer": {"class": SoyFreelancerScraper, "type": "scrapers"},
+    "tecnoempleo": {"class": TecnoempleoScraper, "type": "scrapers"},
+    "workana": {"class": WorkanaScraper, "type": "scrapers"},
+    "linkedin": {"class": LinkedInScraper, "type": "scrapers"},
+    "wellfound": {"class": WellfoundScraper, "type": "scrapers"},
+}
+
+class SuperPipeline:
+    """
+    Pipeline de búsqueda de empleo con todas las mejoras integradas.
+    Diseñado para maximizar resultados y minimizar errores.
+    """
+    
+    def __init__(self):
+        """Inicializa el pipeline con sus componentes principales."""
+        self.config = None
+        self.http_client = None
+        self.db_manager = None
+        self.job_filter = None
+        self.active_sources = []
+        
+        # Estadísticas para monitoreo        self.stats = {
+            'start_time': datetime.now().isoformat(),
+            'end_time': None,
+            'duration_seconds': 0,
+            'sources': {
+                'total': 0,
+                'successful': 0,
+                'failed': 0,
+                'details': {}
+            },
+            'jobs': {
+                'total_raw': 0,
+                'total_processed': 0,
+                'total_filtered': 0
+            },
+            'improved_modules': {
+                'http_client': HTTP_CLIENT_IMPROVED_AVAILABLE,
+                'error_handler': ERROR_HANDLER_AVAILABLE,
+                'linkedin_scraper': LINKEDIN_SCRAPER_IMPROVED_AVAILABLE,
+                'infojobs_scraper': INFOJOBS_SCRAPER_IMPROVED_AVAILABLE,
+                'adzuna_client': ADZUNA_CLIENT_IMPROVED_AVAILABLE
+            },
+            'error_summary': {}
+        }
+        
+        # Listas para seguimiento
+        self.successful_sources = []
+        self.failed_sources = []
+        
+        # Limpiar registro de errores si está disponible
+        if ERROR_HANDLER_AVAILABLE:
+            clear_error_registry()
+    
+    def initialize(self) -> bool:
+        """
+        Configura el entorno y carga todos los componentes necesarios.
+        
+        Returns:
+            bool: True si la configuración fue exitosa, False en caso contrario
+        """
+        try:
+            # Configurar logging
+            logging_config.setup_logging()
+            logger.info("*" * 70)
+            logger.info("**** Iniciando Super Pipeline de Búsqueda de Empleo (v2.0) ****")
+            logger.info("*" * 70)
+            
+            # Cargar configuración
+            self.config = config_loader.get_config()
+            if not self.config:
+                logger.critical("¡Fallo al cargar la configuración! Abortando pipeline.")
+                return False
+                
+            # Inicializar componentes principales
+            logger.info("Inicializando herramientas mejoradas...")
+            
+            # Usar cliente HTTP mejorado si está disponible
+            if HTTP_CLIENT_IMPROVED_AVAILABLE:
+                logger.info("✅ Usando cliente HTTP mejorado con manejo robusto de errores")
+                self.http_client = ImprovedHTTPClient()
+            else:
+                logger.info("⚠️ Usando cliente HTTP estándar (el mejorado no está disponible)")
+                self.http_client = HTTPClient()
+                
+            self.db_manager = DatabaseManager()
+            self.job_filter = JobFilter()
+              # Informar sobre módulos mejorados disponibles
+            logger.info("Componentes mejorados disponibles:")
+            logger.info(f"- Cliente HTTP mejorado: {'✅ Activo' if HTTP_CLIENT_IMPROVED_AVAILABLE else '❌ No disponible'}")
+            logger.info(f"- Manejador de errores: {'✅ Activo' if ERROR_HANDLER_AVAILABLE else '❌ No disponible'}")
+            logger.info(f"- LinkedIn Scraper mejorado: {'✅ Activo' if LINKEDIN_SCRAPER_IMPROVED_AVAILABLE else '❌ No disponible'}")
+            logger.info(f"- InfoJobs Scraper mejorado: {'✅ Activo' if INFOJOBS_SCRAPER_IMPROVED_AVAILABLE else '❌ No disponible'}")
+            logger.info(f"- Adzuna API Client mejorado: {'✅ Activo' if ADZUNA_CLIENT_IMPROVED_AVAILABLE else '❌ No disponible'}")
+            
+            # Actualizar estadísticas de módulos disponibles
+            self.stats['improved_modules'] = {
+                'http_client': HTTP_CLIENT_IMPROVED_AVAILABLE,
+                'error_handler': ERROR_HANDLER_AVAILABLE,
+                'linkedin_scraper': LINKEDIN_SCRAPER_IMPROVED_AVAILABLE,
+                'infojobs_scraper': INFOJOBS_SCRAPER_IMPROVED_AVAILABLE,
+                'adzuna_client': ADZUNA_CLIENT_IMPROVED_AVAILABLE
+            }
+            
+            # Cargar fuentes habilitadas
+            return self._load_enabled_sources()
+            
+        except Exception as e:
+            logger.critical(f"Error MUY GRAVE en la configuración inicial: {e}", exc_info=True)
+            return False
+    
+    def _load_enabled_sources(self) -> bool:
+        """
+        Carga todas las fuentes habilitadas desde la configuración.
+        
+        Returns:
+            bool: True si hay al menos una fuente activa, False si no hay ninguna
+        """
+        logger.info("Identificando y cargando fuentes habilitadas desde settings.yaml...")
+        sources_config = self.config.get('sources', {})
+        if not sources_config:
+            logger.warning("No se encontró la sección 'sources' en la configuración.")
+            return False
+            
+        for source_type in ['apis', 'scrapers']:
+            for source_name, source_cfg in sources_config.get(source_type, {}).items():
+                self.stats['sources']['details'][source_name] = {
+                    'type': source_type,
+                    'enabled': source_cfg.get('enabled', False),
+                    'status': 'pending'
+                }
+                
+                if source_cfg and source_cfg.get('enabled', False):
+                    logger.info(f"Fuente '{source_name}' ({source_type}) está habilitada.")
+                    if source_name in SOURCE_MAP:
+                        SourceClass = SOURCE_MAP[source_name]["class"]
+                        try:
+                            instance = SourceClass(http_client=self.http_client, config=source_cfg)
+                            self.active_sources.append(instance)
+                            logger.info(f"Instancia de {SourceClass.__name__} creada exitosamente.")
+                            
+                            # En el caso específico de LinkedIn, verificar si estamos usando la versión mejorada
+                            if source_name == 'linkedin' and LINKEDIN_SCRAPER_IMPROVED_AVAILABLE:
+                                logger.info(f"✅ Usando versión mejorada para LinkedIn con características avanzadas")
+                                
+                        except Exception as e:
+                            logger.error(f"Error al instanciar {SourceClass.__name__} para '{source_name}'. Se omitirá esta fuente.", exc_info=True)
+                            self.failed_sources.append(f"{source_name} (error de inicialización)")
+                            self.stats['sources']['details'][source_name]['status'] = 'error_init'
+                            self.stats['sources']['details'][source_name]['error'] = str(e)
+                            register_error('init_error', source_name, str(e))
+                    else:
+                        logger.warning(f"Fuente '{source_name}' habilitada en config, ¡pero no se encontró su clase en SOURCE_MAP!")
+                        self.failed_sources.append(f"{source_name} (no encontrada en SOURCE_MAP)")
+                        self.stats['sources']['details'][source_name]['status'] = 'not_found'
+        
+        self.stats['sources']['total'] = len(self.active_sources)
+        logger.info(f"Se han cargado {len(self.active_sources)} fuentes activas")
+        
+        if not self.active_sources:
+            logger.warning("¡No hay fuentes activas configuradas para ejecutarse! Terminando pipeline.")
+            return False
+            
+        return True
+
+    def _build_search_params(self) -> List[Dict[str, Any]]:
+        """
+        Construye múltiples variaciones de parámetros de búsqueda para maximizar
+        la cobertura y los resultados.
+        
+        Returns:
+            Lista de diccionarios con parámetros de búsqueda en diferentes combinaciones
+        """
+        all_keywords = (self.config.get('job_titles', []) or []) + \
+                    (self.config.get('tools_technologies', []) or []) + \
+                    (self.config.get('topics', []) or [])
+        main_location = (self.config.get('locations', []) or [None])[0]
+
+        # Construir varios conjuntos de parámetros
+        search_params_variations = [
+            # Parámetros completos
+            {
+                'keywords': all_keywords,
+                'location': main_location,
+                'process_detail_pages': True  # Para scrapers que soporten enriquecimiento
+            },
+            # Solo palabras clave técnicas/herramientas
+            {
+                'keywords': self.config.get('tools_technologies', []) or [],
+                'location': main_location
+            },
+            # Solo títulos de trabajo
+            {
+                'keywords': self.config.get('job_titles', []) or [],
+                'location': main_location
+            }
+        ]
+        
+        # Si hay demasiadas keywords, crear versiones con menos keywords
+        if len(all_keywords) > 20:
+            # Versión con solo las 10 primeras keywords
+            search_params_variations.append({
+                'keywords': all_keywords[:10],
+                'location': main_location
+            })
+            # Versión con keywords 11-20
+            search_params_variations.append({
+                'keywords': all_keywords[10:20],
+                'location': main_location
+            })
+        
+        # Palabras clave técnicas populares para búsqueda más específica
+        tech_keywords = [k for k in all_keywords if k.lower() in 
+                       ['python', 'javascript', 'react', 'data', 'developer', 'programador', 
+                        'software', 'web', 'frontend', 'backend', 'data scientist']]
+        if tech_keywords:
+            search_params_variations.append({
+                'keywords': tech_keywords[:10],
+                'location': main_location
+            })
+        
+        # Versión sin ubicación para fuentes globales
+        search_params_variations.append({
+            'keywords': all_keywords[:10] if len(all_keywords) > 10 else all_keywords,
+            'location': None
+        })
+        
+        # Si tenemos el módulo de error_handler, usar su función para crear más variaciones robustas
+        if ERROR_HANDLER_AVAILABLE:
+            additional_variations = make_search_more_robust(search_params_variations[0])
+            search_params_variations.extend(additional_variations)
+        
+        # Eliminar duplicados manteniendo el orden
+        unique_variations = []
+        seen = set()
+        for params in search_params_variations:
+            # Convertir a tupla inmutable para poder usarlo como clave en un conjunto
+            key = (tuple(params.get('keywords', [])), params.get('location'))
+            if key not in seen:
+                seen.add(key)
+                unique_variations.append(params)
+        
+        logger.info(f"Parámetros de búsqueda globales: {len(all_keywords)} keywords, location hint: '{main_location}'")
+        logger.info(f"Se usarán {len(unique_variations)} variaciones de parámetros para maximizar resultados")
+        
+        return unique_variations
+
+    def _fetch_jobs_from_source(self, source_instance: Union[BaseAPIClient, BaseScraper], 
+                              search_params_variations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Obtiene ofertas de trabajo de una fuente específica probando diferentes variaciones
+        de parámetros de búsqueda.
+        
+        Args:
+            source_instance: Instancia del scraper o cliente API
+            search_params_variations: Lista de diferentes parámetros de búsqueda a probar
+            
+        Returns:
+            Lista de ofertas de trabajo encontradas
+        """
+        source_name = source_instance.source_name
+        logger.info(f"🔍 Ejecutando fetch_jobs para: {source_name}...")
+        
+        source_stats = {
+            'source_name': source_name,
+            'start_time': datetime.now().isoformat(),
+            'end_time': None,
+            'duration_seconds': 0,
+            'jobs_found': 0,
+            'variations_tried': 0,
+            'status': 'running'
+        }
+        
+        start_time = time.time()
+        jobs_from_source = []
+        
+        try:
+            # Para cada variación de parámetros
+            for i, params in enumerate(search_params_variations):
+                source_stats['variations_tried'] += 1
+                
+                # Si no es la primera variación, añadir delay para parecer más humano
+                if i > 0:
+                    delay = random.uniform(1.5, 3.0)
+                    logger.info(f"Esperando {delay:.2f}s antes de probar variación {i+1} para {source_name}...")
+                    time.sleep(delay)
+                
+                try:
+                    logger.info(f"Usando variación {i+1}/{len(search_params_variations)} para {source_name}")
+                    
+                    # Si esta fuente es LinkedIn y tenemos la versión mejorada, configurar parámetros adicionales
+                    if source_name == 'linkedin' and LINKEDIN_SCRAPER_IMPROVED_AVAILABLE:
+                        # Configurar para procesar páginas de detalle si no están ya configuradas
+                        if 'process_detail_pages' not in params:
+                            params = params.copy()
+                            params['process_detail_pages'] = True
+                    
+                    # Realizar la búsqueda
+                    variation_jobs = source_instance.fetch_jobs(params)
+                    
+                    if variation_jobs:
+                        logger.info(f"✅ Variación {i+1} encontró {len(variation_jobs)} ofertas para '{source_name}'")
+                        
+                        # Verificar posibles duplicados antes de añadirlos
+                        existing_urls = {job.get('url', '') for job in jobs_from_source if job.get('url')}
+                        new_jobs = [job for job in variation_jobs 
+                                  if job.get('url') and job.get('url') not in existing_urls]
+                        
+                        if new_jobs:
+                            jobs_from_source.extend(new_jobs)
+                            logger.info(f"Añadidas {len(new_jobs)} nuevas ofertas (no duplicadas) de variación {i+1}")
+                        else:
+                            logger.info(f"Todas las ofertas de variación {i+1} eran duplicadas, ninguna añadida")
+                            
+                        # Si ya tenemos suficientes ofertas, paramos
+                        if len(jobs_from_source) >= 50:
+                            logger.info(f"Alcanzado máximo recomendado de ofertas ({len(jobs_from_source)}) para {source_name}")
+                            break
+                    else:
+                        logger.info(f"❌ Variación {i+1} no encontró ofertas para '{source_name}'")
+                
+                except Exception as e:
+                    logger.error(f"Error en variación {i+1} para '{source_name}': {str(e)}")
+                    register_error('variation_error', source_name, f"Variación {i+1}: {str(e)}")
+            
+            # Procesar resultados finales
+            if jobs_from_source:
+                # Asegurar que cada oferta tenga el campo 'fuente' correctamente asignado
+                for job in jobs_from_source:
+                    if 'fuente' not in job or not job['fuente']:
+                        job['fuente'] = source_name
+                        
+                logger.info(f"✅ Fuente '{source_name}' devolvió {len(jobs_from_source)} ofertas en total.")
+                self.successful_sources.append(source_name)
+                source_stats['status'] = 'success'
+                source_stats['jobs_found'] = len(jobs_from_source)
+            else:
+                logger.info(f"❌ Fuente '{source_name}' no devolvió ofertas después de intentar todas las variaciones.")
+                self.failed_sources.append(f"{source_name} (sin resultados)")
+                source_stats['status'] = 'no_results'
+                
+        except Exception as e:
+            end_time = time.time()
+            source_stats['duration_seconds'] = end_time - start_time
+            source_stats['end_time'] = datetime.now().isoformat()
+            source_stats['status'] = 'error'
+            source_stats['error'] = str(e)
+            
+            logger.error(f"⛔ Error general al ejecutar fetch_jobs para '{source_name}'! Se continuará con la siguiente fuente.", exc_info=True)
+            self.failed_sources.append(f"{source_name} (error: {str(e)[:100]}...)")
+            
+            # Registrar error
+            register_error('fetch_error', source_name, str(e))
+                
+            # Actualizar estadísticas
+            self.stats['sources']['details'][source_name] = source_stats
+            return []
+        
+        # Actualizar estadísticas finales
+        end_time = time.time()
+        source_stats['duration_seconds'] = end_time - start_time
+        source_stats['end_time'] = datetime.now().isoformat()
+        self.stats['sources']['details'][source_name] = source_stats
+        
+        return jobs_from_source
+
+    def _fetch_jobs_parallel(self, max_workers: int = 3) -> List[Dict[str, Any]]:
+        """
+        Obtiene ofertas de trabajo de múltiples fuentes en paralelo con 
+        control de concurrencia para evitar sobrecarga.
+        
+        Args:
+            max_workers: Número máximo de workers en paralelo
+            
+        Returns:
+            Lista combinada de ofertas de trabajo de todas las fuentes
+        """
+        all_raw_jobs = []
+        search_params_variations = self._build_search_params()
+        
+        # Agrupar las fuentes por tipo (API y scrapers)
+        apis = [s for s in self.active_sources if isinstance(s, BaseAPIClient)]
+        scrapers = [s for s in self.active_sources if isinstance(s, BaseScraper)]
+        
+        logger.info(f"Ejecutando {len(apis)} APIs y {len(scrapers)} scrapers")
+        
+        # Primero ejecutamos las APIs en paralelo (son más rápidas y estables)
+        if apis:
+            logger.info(f"Ejecutando {len(apis)} APIs en paralelo (max_workers={max_workers})...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Crear las tareas para cada API
+                future_to_api = {
+                    executor.submit(self._fetch_jobs_from_source, api, search_params_variations): api 
+                    for api in apis
+                }
+                
+                # Procesar los resultados a medida que estén disponibles
+                for future in concurrent.futures.as_completed(future_to_api):
+                    api = future_to_api[future]
+                    try:
+                        jobs = future.result()
+                        if jobs:
+                            all_raw_jobs.extend(jobs)
+                            logger.info(f"API '{api.source_name}' completada con {len(jobs)} ofertas")
+                    except Exception as e:
+                        logger.error(f"Error procesando resultados de API '{api.source_name}': {e}")
+        
+        # Luego ejecutamos los scrapers con menos paralelismo para evitar bloqueos
+        scraper_workers = min(2, max_workers)  # Limitamos a 2 scrapers en paralelo
+        if scrapers:
+            logger.info(f"Ejecutando {len(scrapers)} scrapers (max_workers={scraper_workers})...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=scraper_workers) as executor:
+                # Crear las tareas para cada scraper
+                future_to_scraper = {
+                    executor.submit(self._fetch_jobs_from_source, scraper, search_params_variations): scraper 
+                    for scraper in scrapers
+                }
+                
+                # Procesar los resultados a medida que estén disponibles
+                for future in concurrent.futures.as_completed(future_to_scraper):
+                    scraper = future_to_scraper[future]
+                    try:
+                        jobs = future.result()
+                        if jobs:
+                            all_raw_jobs.extend(jobs)
+                            logger.info(f"Scraper '{scraper.source_name}' completado con {len(jobs)} ofertas")
+                    except Exception as e:
+                        logger.error(f"Error procesando resultados de scraper '{scraper.source_name}': {e}")
+        
+        # Actualizar estadísticas
+        self.stats['sources']['successful'] = len(self.successful_sources)
+        self.stats['sources']['failed'] = len(self.failed_sources)
+        self.stats['jobs']['total_raw'] = len(all_raw_jobs)
+        
+        return all_raw_jobs
+        
+    def run(self) -> Dict[str, Any]:
+        """
+        Ejecuta toda la pipeline de búsqueda de empleo.
+        
+        Returns:
+            Dict: Resultados y estadísticas de la ejecución
+        """
+        if not self.initialize():
+            return {
+                "status": "error",
+                "message": "Error en la inicialización de la pipeline",
+                "stats": self.stats
+            }
+            
+        start_time = time.time()
+        
+        try:
+            # Realizar la recolección de datos (con paralelismo controlado)
+            logger.info(f"--- Iniciando Recolección de Datos ({len(self.active_sources)} fuentes activas) ---")
+            all_raw_jobs = self._fetch_jobs_parallel()
+            
+            # Si no se encontraron ofertas, terminar
+            if not all_raw_jobs:
+                logger.warning("⚠️ No se encontraron ofertas de empleo en ninguna fuente.")
+                self.cleanup()
+                self.stats['end_time'] = datetime.now().isoformat()
+                self.stats['duration_seconds'] = time.time() - start_time
+                return {
+                    "status": "warning",
+                    "message": "No se encontraron ofertas de empleo",
+                    "stats": self.stats
+                }
+            
+            # Resumen de fuentes exitosas y fallidas
+            logger.info(f"--- Recolección Finalizada. Total ofertas 'crudas' obtenidas: {len(all_raw_jobs)} ---")
+            logger.info(f"Fuentes exitosas ({len(self.successful_sources)}): {', '.join(self.successful_sources)}")
+            logger.info(f"Fuentes sin resultados o con errores ({len(self.failed_sources)}): {', '.join(self.failed_sources)}")
+
+            # Procesamiento y limpieza de datos
+            logger.info("--- Iniciando Procesamiento/Limpieza de Datos ---")
+            processed_jobs = data_processor.process_job_offers(all_raw_jobs)
+            logger.info(f"--- Procesamiento Finalizado. {len(processed_jobs)} ofertas después de limpieza ---")
+            self.stats['jobs']['total_processed'] = len(processed_jobs)
+
+            # Filtrado de ofertas
+            logger.info("--- Iniciando Filtrado de Ofertas ---")
+            filtered_jobs = self.job_filter.filter_jobs(processed_jobs)
+            logger.info(f"--- Filtrado Finalizado. {len(filtered_jobs)} ofertas cumplen los criterios ---")
+            self.stats['jobs']['total_filtered'] = len(filtered_jobs)
+
+            # Inserción en base de datos
+            if filtered_jobs:
+                logger.info("--- Iniciando Inserción en Base de Datos ---")
+                self.db_manager.insert_job_offers(filtered_jobs)
+                logger.info("--- Inserción en Base de Datos Finalizada ---")
+            else:
+                logger.info("No hay ofertas filtradas para insertar en la base de datos.")
+
+            # Exportación a CSV si está habilitada
+            csv_export_enabled = self.config.get('data_storage', {}).get('csv', {}).get('export_enabled', False)
+            if csv_export_enabled:
+                logger.info("--- Iniciando Exportación a CSV ---")
+                if filtered_jobs:
+                    # Exportar ambos archivos: todas las ofertas sin filtrar y solo las filtradas
+                    file_exporter.export_to_csv(filtered_jobs, is_filtered=True, unfiltered_offers=processed_jobs)
+                    logger.info("--- Exportación a CSV Finalizada (ofertas filtradas y sin filtrar) ---")
+                else:
+                    # Si no hay ofertas filtradas, exportar solo las sin filtrar
+                    logger.info("No hay ofertas filtradas para exportar, pero se exportarán todas las ofertas sin filtrar")
+                    file_exporter.export_to_csv([], is_filtered=True, unfiltered_offers=processed_jobs)
+                    logger.info("--- Exportación a CSV Finalizada (solo ofertas sin filtrar) ---")
+            else:
+                logger.info("Exportación a CSV deshabilitada en la configuración.")
+            
+            # Finalizar y guardar estadísticas
+            end_time = time.time()
+            self.stats['end_time'] = datetime.now().isoformat()
+            self.stats['duration_seconds'] = end_time - start_time
+            
+            # Guardar estadísticas detalladas en archivo JSON
+            self._save_stats()
+            
+            # Limpieza final
+            self.cleanup()
+            
+            logger.info("******************************************************")
+            logger.info("**** Super Pipeline de Búsqueda de Empleo Finalizado ****")
+            logger.info(f"**** Tiempo total: {self.stats['duration_seconds']:.2f} segundos ****")
+            logger.info(f"**** Ofertas encontradas: {self.stats['jobs']['total_filtered']} / {self.stats['jobs']['total_raw']} ****")
+            logger.info("******************************************************")
+            
+            return {
+                "status": "success",
+                "message": "Pipeline ejecutado exitosamente",
+                "stats": self.stats,
+                "processed_jobs": len(processed_jobs),
+                "filtered_jobs": len(filtered_jobs)
+            }
+            
+        except Exception as e:
+            logger.critical(f"Error grave durante la ejecución de la pipeline: {e}", exc_info=True)
+            self.cleanup()
+            self.stats['end_time'] = datetime.now().isoformat()
+            self.stats['duration_seconds'] = time.time() - start_time
+            self.stats['error'] = str(e)
+            return {
+                "status": "error",
+                "message": f"Error grave durante la ejecución: {str(e)}",
+                "stats": self.stats
+            }
+    
+    def _save_stats(self):
+        """Guarda las estadísticas detalladas en un archivo JSON."""
+        try:
+            stats_dir = project_root / "data" / "stats"
+            stats_dir.mkdir(exist_ok=True, parents=True)
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            stats_file = stats_dir / f"pipeline_stats_{timestamp}.json"
+            
+            with open(stats_file, 'w', encoding='utf-8') as f:
+                json.dump(self.stats, f, indent=2, ensure_ascii=False)
+                
+            logger.info(f"Estadísticas guardadas en {stats_file}")
+        except Exception as e:
+            logger.error(f"Error guardando estadísticas: {e}")
+    
+    def cleanup(self):
+        """Realiza limpieza de recursos al finalizar."""
+        if self.http_client:
+            logger.info("Cerrando cliente HTTP...")
+            self.http_client.close()
+            
+            # Si estamos usando el cliente mejorado, mostrar estadísticas
+            if HTTP_CLIENT_IMPROVED_AVAILABLE and hasattr(self.http_client, 'get_stats'):
+                http_stats = self.http_client.get_stats()
+                logger.info(f"Estadísticas de HTTP: {http_stats.get('success_rate', '?')} de éxito en {http_stats.get('total_requests', 0)} peticiones")
+                
+                problematic_domains = self.http_client.get_problematic_domains() if hasattr(self.http_client, 'get_problematic_domains') else {}
+                if problematic_domains:
+                    logger.warning(f"Dominios problemáticos detectados: {', '.join(problematic_domains.keys())}")
+
+
+def run_job_search_pipeline_super():
+    """
+    Función principal que inicia el super pipeline de búsqueda de empleo.
+    """
+    pipeline = SuperPipeline()
+    result = pipeline.run()
+    return result
+
+
+if __name__ == "__main__":
+    print("Ejecutando el super pipeline de búsqueda de empleo...")
+    try:
+        result = run_job_search_pipeline_super()
+        
+        if result["status"] == "success":
+            print("\n✅ Super pipeline ejecutado exitosamente.")
+            print(f"Se encontraron {result.get('filtered_jobs', 0)} ofertas filtradas.")
+        else:
+            print(f"\n⚠️ {result['status'].upper()}: {result['message']}")
+            print("Revisa los logs ('logs/app.log') para más detalles.")
+    except Exception as e:
+        logging.getLogger().critical("¡Ocurrió un error fatal en la ejecución principal!", exc_info=True)
+        print(f"\n⛔ ¡ERROR! El pipeline falló. Revisa los logs ('logs/app.log'). Error: {e}")
