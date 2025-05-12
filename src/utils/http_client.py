@@ -82,7 +82,33 @@ class HTTPClient:
 
         # Establecemos el User-Agent por defecto para toda la sesión.
         self.session.headers.update({'User-Agent': user_agent})
+        
+        # Añadimos headers adicionales que suelen ayudar a evitar bloqueos
+        additional_headers = {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        }
+        self.session.headers.update(additional_headers)
         logger.debug(f"User-Agent configurado para la sesión: {user_agent}")
+        logger.debug(f"Headers adicionales configurados para simular navegador real")
+
+        # Lista de User-Agents para rotación
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/111.0',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (iPad; CPU OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1'
+        ]
 
         # Guardamos el timeout por defecto para usarlo en las peticiones.
         self.default_timeout = timeout
@@ -114,9 +140,14 @@ class HTTPClient:
             logger.exception(f"Error inesperado configurando reintentos: {e}")
             logger.warning("Continuando sin reintentos automáticos.")
 
+    def rotate_user_agent(self):
+        """Rota aleatoriamente el User-Agent para evitar detección de scraping"""
+        new_user_agent = random.choice(self.user_agents)
+        self.session.headers.update({'User-Agent': new_user_agent})
+        logger.debug(f"User-Agent rotado a: {new_user_agent}")
 
     def get(self, url: str, headers: Optional[Dict] = None, params: Optional[Dict] = None, timeout: Optional[Tuple] = None,
-            delay_after_request: float = DEFAULT_DELAY_SECONDS) -> Optional[requests.Response]:
+            delay_after_request: float = DEFAULT_DELAY_SECONDS, rotate_agent: bool = True) -> Optional[requests.Response]:
         """
         Realiza una petición GET a la URL especificada usando nuestra sesión configurada.
 
@@ -126,11 +157,19 @@ class HTTPClient:
             params (dict, optional): Parámetros a añadir a la URL (ej: {'q': 'python'}). Defaults to None.
             timeout (tuple, optional): Timeout específico para esta petición (conexión, lectura). Usa el default si es None. Defaults to None.
             delay_after_request (float, optional): Pausa en segundos después de una petición exitosa. Defaults to DEFAULT_DELAY_SECONDS.
+            rotate_agent (bool, optional): Si se debe rotar el User-Agent antes de hacer la petición. Defaults to True.
 
         Returns:
             requests.Response | None: El objeto Response si la petición fue exitosa (después de posibles reintentos),
                                      o None si la petición falló definitivamente.
         """
+        # Rotar el User-Agent si está habilitado para evitar detección de scraping
+        if rotate_agent:
+            self.rotate_user_agent()
+            
+        # Añadir un pequeño jitter aleatorio al delay para parecer más humano
+        actual_delay = delay_after_request + random.uniform(0.1, 0.8)
+        
         # Usamos el timeout específico si se proporciona, si no, el default de la clase.
         current_timeout = timeout if timeout is not None else self.default_timeout
 
@@ -163,14 +202,13 @@ class HTTPClient:
             response.raise_for_status()
 
             # ¡Éxito! Si llegamos aquí, la petición fue bien (código 2xx).
-            logger.info(f"Petición GET a {url} exitosa (Código: {response.status_code})")
+            logger.info(f"Petición GET a {url} exitosa (Código: {response.status_code}, Tamaño: {len(response.text)} bytes)")
 
             # ¡La pausa! Esperamos un poquito después de una petición exitosa.
-            # Podríamos añadir algo de aleatoriedad si quisiéramos ser menos predecibles.
-            # delay_with_jitter = delay_after_request + random.uniform(0, 0.5) # Ejemplo jitter
-            if delay_after_request > 0:
-                 logger.debug(f"Esperando {delay_after_request} segundos antes de la siguiente petición...")
-                 time.sleep(delay_after_request)
+            # Ahora usamos el delay con jitter para parecer más humano
+            if actual_delay > 0:
+                 logger.debug(f"Esperando {actual_delay:.2f} segundos antes de la siguiente petición...")
+                 time.sleep(actual_delay)
 
             # Devolvemos el objeto Response completo. El que llama decidirá qué hacer con él (leer .text, .json(), etc.).
             return response
@@ -196,10 +234,6 @@ class HTTPClient:
              # Capturamos cualquier otro error inesperado que no sea de requests.
              logger.exception(f"Error inesperado durante la petición GET a {url}: {e}") # Usamos logger.exception para incluir traceback.
              return None
-
-    # Podríamos añadir un método post() si alguna API lo necesitara,
-    # configurando también los reintentos para POST si fuera seguro hacerlo.
-    # def post(self, url: str, data: Optional[Dict] = None, json: Optional[Dict] = None, ...) -> Optional[requests.Response]: ...
 
     def close(self):
         """
