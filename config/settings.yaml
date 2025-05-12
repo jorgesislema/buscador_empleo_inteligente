@@ -7,39 +7,149 @@
 # --- Categorías de Palabras Clave ---
 # Dividimos las palabras clave para más claridad. JobFilter las leerá todas.
 job_titles: # Títulos de puesto específicos
+  # Data Science (inglés)
   - "data scientist"
-  - "científico de datos"
   - "data science specialist"
   - "data analyst"
-  - "analista de datos"
   - "business analyst"
-  - "analista de negocio"
   - "BI analyst"
   - "business intelligence"
   - "data engineer"
-  - "ingeniero de datos"
   - "machine learning engineer"
   - "MLOps engineer"
   - "AI engineer"
   - "NLP engineer"
   - "big data engineer"
   - "decision scientist"
+  - "data architect"
+  - "ETL developer"
+  - "analytics engineer"
+  - "data scientist, NLP"
+  - "data scientist, deep learning"
+  - "computer vision engineer"
+  - "data visualization specialist"
+  - "data quality analyst"
+  - "research scientist"
+  - "deep learning engineer"
+  
+  # Data Science (español)
+  - "científico de datos"
+  - "analista de datos"
+  - "analista de negocio"
+  - "analista BI"
+  - "inteligencia de negocios"
+  - "ingeniero de datos"
+  - "especialista en big data"
+  - "especialista en machine learning"
+  - "científico de decisiones"
+  - "arquitecto de datos"
+  - "analista de calidad de datos"
+  - "científico investigador de datos"
+  - "desarrollador ETL"
+  - "ingeniero de análisis"
+  - "analista de datos senior"
+  - "ingeniero MLOps"
+  - "especialista en visión artificial"
+  - "especialista en NLP"
+  
+  # Programación (inglés)
+  - "software developer"
+  - "software engineer"
+  - "full stack developer"
+  - "backend developer"
+  - "frontend developer"
+  - "mobile developer"
+  - "devops engineer"
+  - "cloud engineer"
+  - "web developer"
+  
+  # Programación (español)
+  - "desarrollador"
+  - "programador"
+  - "ingeniero de software"
+  - "programador web"
+  - "desarrollador full stack"
+  - "desarrollador frontend"
+  - "desarrollador backend"
+  - "desarrollador móvil"
+  - "desarrollador de aplicaciones"
+  - "ingeniero devops"
+  
+  # Marketing Digital/Ecommerce
+  - "digital marketing"
+  - "marketing digital"
+  - "ecommerce"
+  - "comercio electrónico"
+  - "SEO specialist"
+  - "especialista SEO"
+  - "growth hacker"
 
 tools_technologies: # Herramientas y tecnologías específicas
+  # Lenguajes de programación
   - "python"
   - "r"
   - "sql"
-  - "excel"
+  - "java"
+  - "javascript"
+  - "typescript"
+  - "php"
+  - "c#"
+  - "golang"
+  - "rust"
+  - "kotlin"
+  - "swift"
+  - "scala"
+  - "julia"
+  
+  # Frameworks y bibliotecas
+  - "django"
+  - "flask"
+  - "fastapi"
+  - "spring"
+  - "laravel"
+  - "react"
+  - "angular"
+  - "vue"
+  - "node.js"
+  - "express"
+  - "symfony"
+  - ".net"
   - "pandas"
   - "numpy"
   - "scikit-learn"
+  - "scipy"
   - "seaborn"
   - "matplotlib"
   - "tensorflow"
+  - "keras"
   - "pytorch"
+  - "hugging face"
+  - "transformers"
+  - "langchain"
+  - "spacy"
+  - "nltk"
+  - "openai"
+  - "ray"
+  - "dask"
+  - "mlflow"
+  - "kubeflow"
+  - "airflow"
+  
+  # Herramientas de análisis
+  - "excel"
   - "power bi"
   - "tableau"
   - "looker"
+  - "metabase"
+  - "redash"
+  - "google analytics"
+  - "google data studio"
+  - "qlik"
+  - "mode analytics"
+  - "alteryx"
+  - "dbt"
+  
+  # Big Data / Cloud
   - "apache spark"
   - "kafka"
   - "databricks"
@@ -47,16 +157,67 @@ tools_technologies: # Herramientas y tecnologías específicas
   - "snowflake"
   - "bigquery"
   - "aws"
+  - "ec2"
+  - "s3"
+  - "redshift"
+  - "lambda"
   - "gcp"
+  - "google cloud"
   - "azure"
+  - "docker"
+  - "kubernetes"
+  - "elasticsearch"
+  - "mongodb"
+  - "redis"
+  - "cassandra"
+  - "hadoop"
+  - "hive"
+  - "presto"
+  - "trino"
+  - "neo4j"
+  - "fivetran"
 
 topics: # Conceptos y áreas temáticas generales
+  # Inteligencia Artificial / ML (inglés)
   - "machine learning"
+  - "artificial intelligence"
+  - "AI"
+  - "deep learning"
+  - "NLP"
+  - "natural language processing"
+  - "predictive analytics"
+  - "data mining"
+  - "statistical models"
+  - "data science"
+  - "data visualization"
+  - "data quality"
+  - "data governance"
+  - "data engineering"
+  - "exploratory analysis"
+  - "data pipeline"
+  - "data automation"
+  - "computer vision"
+  - "generative AI"
+  - "large language models"
+  - "LLM"
+  - "chatbots"
+  - "responsible AI"
+  - "data ethics"
+  - "data privacy"
+  - "reinforcement learning"
+  - "feature engineering"
+  - "time series analysis"
+  - "recommender systems"
+  - "model deployment"
+  - "model optimization"
+  - "data infrastructure"
+  - "business analytics"
+  - "vector databases"
+  
+  # Inteligencia Artificial / ML (español)
   - "aprendizaje automático"
   - "inteligencia artificial"
   - "IA"
-  - "deep learning"
-  - "NLP"
   - "procesamiento de lenguaje natural"
   - "análisis predictivo"
   - "minería de datos"
@@ -67,39 +228,223 @@ topics: # Conceptos y áreas temáticas generales
   - "gobernanza de datos"
   - "ingeniería de datos"
   - "análisis exploratorio"
-  - "data pipeline"
-  - "automatización de datos"
+  - "visión por computadora"
+  - "IA generativa"
+  - "modelos de lenguaje grandes"
+  - "análisis de series temporales"
+  - "sistemas de recomendación"
+  - "despliegue de modelos"
+  - "optimización de modelos"
+  
+  # Desarrollo Web/Móvil
+  - "web development"
+  - "desarrollo web"
+  - "mobile development"
+  - "desarrollo móvil"
+  - "frontend"
+  - "backend"
+  - "full stack"
+  - "devops"
+  - "cloud computing"
+  - "computación en la nube"
+  - "API"
+  - "microservices"
+  - "microservicios"
+  
+  # Marketing Digital
+  - "marketing digital"
+  - "social media"
+  - "redes sociales"
+  - "SEO"
+  - "SEM"
+  - "content marketing"
+  - "marketing de contenidos"
+  - "e-commerce"
+  - "comercio electrónico"
 
 # --- Ubicaciones de Búsqueda ---
-# Especificaciones:
-# - Ecuador Presencial/Híbrido: SOLO Quito.
-# - Ecuador Remoto: Cualquier ciudad (buscaremos "Remote Ecuador" o genéricos).
-# - Otros Países (América, España): SOLO Remoto.
+# Expandimos las ubicaciones para maximizar ofertas de LATAM, España y Norteamérica
 locations:
-  # Ecuador (Presencial/Híbrido - Solo Quito)
+  # España y regiones
+  - "Madrid"
+  - "Barcelona"
+  - "Valencia"
+  - "Sevilla"
+  - "Bilbao"
+  - "Málaga"
+  - "Zaragoza"
+  - "Alicante"
+  - "España"
+  - "Spain"
+  - "Remote Spain"
+  - "España Remoto"
+  - "Teletrabajo España"
+  - "Canarias"
+  - "Baleares"
+  
+  # México
+  - "Ciudad de México"
+  - "CDMX"
+  - "Guadalajara"
+  - "Monterrey"
+  - "Querétaro"
+  - "Puebla"
+  - "Tijuana"
+  - "México"
+  - "Mexico"
+  - "Remote Mexico"
+  - "México Remoto"
+  
+  # Colombia
+  - "Bogotá"
+  - "Medellín"
+  - "Cali"
+  - "Barranquilla"
+  - "Cartagena"
+  - "Colombia"
+  - "Remote Colombia"
+  - "Colombia Remoto"
+  
+  # Argentina
+  - "Buenos Aires"
+  - "CABA"
+  - "Córdoba"
+  - "Rosario"
+  - "Mendoza"
+  - "Argentina"
+  - "Remote Argentina"
+  - "Argentina Remoto"
+  
+  # Chile
+  - "Santiago"
+  - "Valparaíso"
+  - "Concepción"
+  - "Viña del Mar"
+  - "Chile"
+  - "Remote Chile"
+  - "Chile Remoto"
+  
+  # Perú
+  - "Lima"
+  - "Arequipa"
+  - "Trujillo"
+  - "Cusco"
+  - "Perú"
+  - "Peru"
+  - "Remote Peru"
+  - "Perú Remoto"
+  
+  # Ecuador
   - "Quito"
-
-  # Ecuador (Remoto)
+  - "Guayaquil"
+  - "Cuenca"
+  - "Ecuador"
   - "Remote Ecuador"
   - "Ecuador Remoto"
-
-  # Modalidades Remotas (Genéricas y otras regiones/países)
+  
+  # Uruguay
+  - "Montevideo"
+  - "Punta del Este"
+  - "Uruguay"
+  - "Remote Uruguay"
+  - "Uruguay Remoto"
+  
+  # Paraguay
+  - "Asunción"
+  - "Paraguay"
+  - "Remote Paraguay"
+  - "Paraguay Remoto"
+  
+  # Bolivia
+  - "La Paz"
+  - "Santa Cruz"
+  - "Bolivia"
+  - "Remote Bolivia"
+  - "Bolivia Remoto"
+  
+  # Venezuela
+  - "Caracas"
+  - "Venezuela"
+  - "Remote Venezuela"
+  - "Venezuela Remoto"
+  
+  # Centroamérica
+  - "Panamá"
+  - "Panama"
+  - "Costa Rica"
+  - "San José"
+  - "Guatemala"
+  - "El Salvador"
+  - "Honduras"
+  - "Nicaragua"
+  - "Belice"
+  - "República Dominicana"
+  - "Dominican Republic"
+  - "Puerto Rico"
+  - "Central America"
+  - "Centroamérica"
+  
+  # El Caribe
+  - "Caribe"
+  - "Caribbean"
+  - "Cuba"
+  - "Jamaica"
+  - "Trinidad y Tobago"
+  
+  # Estados Unidos / Canadá
+  - "Remote USA"
+  - "Remote US"
+  - "USA Remote"
+  - "US Remote"
+  - "North America Remote"
+  - "Miami"
+  - "Los Angeles"
+  - "New York"
+  - "Houston"
+  - "Chicago"
+  - "Seattle"
+  - "San Francisco"
+  - "Remote Canada"
+  - "Canada Remote"
+  - "Toronto"
+  - "Vancouver"
+  - "Montreal"
+  
+  # Regiones geográficas amplias
+  - "América Latina"
+  - "LATAM"
+  - "Latin America"
+  - "Sudamérica"
+  - "South America"
+  - "Norteamérica"
+  - "North America"
+  - "Hispanoamérica"
+  - "Iberoamérica"
+  
+  # Modalidades Remotas / Híbridas
   - "remoto"
   - "remote"
   - "teletrabajo"
   - "trabajo desde casa"
-  - "Remote Spain"
+  - "trabajo a distancia"
+  - "home office"
+  - "100% remote"
+  - "100% remoto"
   - "Remote LATAM"
+  - "Remote Latin America"
   - "Remote South America"
   - "Remote North America"
-  - "Remote USA"
-  - "Remote Canada"
-  - "Remote Mexico"
-  - "Remote Colombia"
-  - "Remote Argentina"
-  - "Remote Chile"
-  - "Remote Peru"
   - "Remote Global"
+  - "Remote Anywhere"
+  - "Worldwide"
+  - "Hybrid"
+  - "Híbrido"
+  - "Semipresencial"
+  - "Flexible"
+  - "Partially Remote"
+  - "Global"
+  - "Internacional"
+  - "International"
 
 # --- Configuración de Almacenamiento ---
 data_storage:
@@ -127,9 +472,12 @@ sources:
     jobicy:
       enabled: true # API pública, no necesita key
     jooble:
-      enabled: false # ¡Requiere JOOBLE_API_KEY en .env! (Cliente API)
+      enabled: true # ¡Requiere JOOBLE_API_KEY en .env! (Cliente API)
     remoteok:
       enabled: true # API pública JSON, no necesita key
+    huggingface:
+      enabled: true # API pública de HuggingFace Jobs para roles de IA/ML
+      base_api_url: "https://huggingface.co/api/jobs"
 
   scrapers: # Scrapers que leen HTML (más frágiles, ¡NECESITAN VERIFICACIÓN DE SELECTORES!)
     # --- Ecuador ---
@@ -137,48 +485,105 @@ sources:
       enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://ec.computrabajo.com/"
     multitrabajos:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://www.multitrabajos.com"
     porfinempleo:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://www.porfinempleo.com/" # ¡Verificar URL!
     portalempleoec: # Apunta a encuentraempleo.trabajo.gob.ec
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores y quizás método (POST?)!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores y quizás método (POST?)!
       base_url: "https://encuentraempleo.trabajo.gob.ec/"
     bumeran:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://www.bumeran.com.ec/"
     # --- España ---
     infojobs:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://www.infojobs.net"
     tecnoempleo:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://www.tecnoempleo.com/"
     # --- LATAM/Global/Remoto ---
     empleosnet:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores y lógica de país!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores y lógica de país!
       base_url: "https://www.empleos.net/"
     getonboard:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      enabled: true # ¡FIXME: Necesita verificar/ajustar selectores!
       base_url: "https://www.getonboard.com/" # O .co? Verificar
     remoterocketship:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores!
+      enabled: true 
       base_url: "https://remoterocketship.com/"
+    remotojob:
+      enabled: true
+      base_url: "https://remotojob.com/"
     # --- Freelance ---
     workana:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores! (Proyectos freelance)
+      enabled: true 
       base_url: "https://www.workana.com/"
     soyfreelancer:
-      enabled: false # ¡FIXME: Necesita verificar/ajustar selectores! (Proyectos freelance)
+      enabled: true 
       base_url: "https://www.soyfreelancer.com/"
-    # --- Otros Comentados ---
-    # ... (linkedin, indeed, etc.) ...
+    # --- Nuevos Portales Remotos ---
+    remoteok_scraper:
+      enabled: true
+      base_url: "https://remoteok.com/"
+    weworkremotely:
+      enabled: true
+      base_url: "https://weworkremotely.com/"
+    justremote:
+      enabled: true
+      base_url: "https://justremote.co/"
+    remoteco:
+      enabled: true
+      base_url: "https://remote.co/remote-jobs/"
+    linkedin:
+      enabled: true
+      base_url: "https://www.linkedin.com/jobs/search/"
+    wellfound:
+      enabled: true
+      base_url: "https://wellfound.com/jobs"
+    remotive:
+      enabled: true
+      base_url: "https://remotive.com/"
+    flexjobs:
+      enabled: true
+      base_url: "https://www.flexjobs.com/"
+    # --- Nuevos Portales Freelance ---
+    freelancer:
+      enabled: true
+      base_url: "https://www.freelancer.com/jobs/"
+    upwork:
+      enabled: true
+      base_url: "https://www.upwork.com/freelance-jobs/"
+    fiverr:
+      enabled: true
+      base_url: "https://www.fiverr.com/resources/guides/programming-tech/"
+    peopleperhour:
+      enabled: true
+      base_url: "https://www.peopleperhour.com/freelance-jobs"
+    toptal:
+      enabled: true
+      base_url: "https://www.toptal.com/freelance-jobs"
+    guru:
+      enabled: true
+      base_url: "https://www.guru.com/d/jobs/"
 
 # --- Configuración de Logging ---
 logging:
   level: "INFO" # Nivel mínimo a registrar (DEBUG, INFO, WARNING, ERROR, CRITICAL)
   log_file: "app.log" # Nombre del archivo en /logs/
+
+# --- Parámetros Globales de Búsqueda ---
+scraping:
+  max_pages_per_source: 25          # Aumentamos a 25 páginas por fuente (de max 10)
+  max_results_per_source: 300       # Aumentamos a 300 resultados por fuente
+  request_delay_seconds: 1.5        # Espera entre solicitudes para no sobrecargar servidores
+  max_retries: 3                    # Número de reintentos si falla una solicitud
+  timeout_seconds: 30               # Tiempo máximo de espera por solicitud
+  use_random_user_agents: true      # Rotación de User-Agents para evitar bloqueos
+  parallel_sources: true            # Procesar fuentes en paralelo (más rápido)
+  parallel_workers: 6               # Número de trabajadores en paralelo
+  date_range_days: 30               # Buscar ofertas de los últimos 30 días
 
 # --- Otros Parámetros (Opcional, ideas para futuro) ---
 # filters:                          # Sección para filtros adicionales (NECESITA IMPLEMENTACIÓN EN PYTHON)
