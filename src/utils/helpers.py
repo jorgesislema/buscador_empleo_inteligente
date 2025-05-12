@@ -17,6 +17,7 @@ import re               # Para limpieza con expresiones regulares.
 import unicodedata      # Para normalizar texto y quitar acentos.
 from urllib.parse import urljoin # La forma más segura de unir URLs.
 from typing import Optional, List, Dict, Any # Type hints.
+from datetime import datetime, timedelta # Para manejo de fechas.
 
 # Logger para nuestras herramientas.
 logger = logging.getLogger(__name__)
@@ -113,6 +114,197 @@ def safe_url_join(base_url: Optional[str], relative_path: Optional[str]) -> Opti
          return None
 
 
+def process_date(date_str):
+    """
+    Procesa y estandariza fechas de diferentes formatos (inglés y español)
+    y devuelve en formato ISO 'YYYY-MM-DD'.
+    
+    Args:
+        date_str: La cadena de fecha a procesar (puede ser en español/inglés, relativa o absoluta)
+    
+    Returns:
+        str: Fecha en formato ISO 'YYYY-MM-DD' o None si no se puede procesar
+    """
+    if not date_str:
+        return None
+    
+    date_str = str(date_str).lower().strip()
+    today = datetime.now().date()
+    
+    # Si ya está en formato ISO, devolverlo directamente
+    iso_match = re.match(r'^\d{4}-\d{2}-\d{2}', date_str)
+    if iso_match:
+        return date_str[:10]  # Solo los primeros 10 caracteres (YYYY-MM-DD)
+    
+    # Formatos relativos en español
+    if any(term in date_str for term in ['hoy', 'publicado hoy', 'publicada hoy']):
+        return today.strftime('%Y-%m-%d')
+    if any(term in date_str for term in ['ayer', 'publicado ayer', 'publicada ayer']):
+        return (today - timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    # Formatos relativos en inglés
+    if any(term in date_str for term in ['today', 'posted today', 'just now', 'moments ago']):
+        return today.strftime('%Y-%m-%d')
+    if any(term in date_str for term in ['yesterday', 'posted yesterday']):
+        return (today - timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    # Formato "hace X días/horas/etc." (español)
+    match_es = re.search(r'hace\s+(\d+)\s+(día|días|hora|horas|semana|semanas|mes|meses)', date_str)
+    if match_es:
+        value = int(match_es.group(1))
+        unit = match_es.group(2)
+        
+        if 'día' in unit:
+            return (today - timedelta(days=value)).strftime('%Y-%m-%d')
+        elif 'hora' in unit:
+            return today.strftime('%Y-%m-%d')  # Mismo día para horas
+        elif 'semana' in unit:
+            return (today - timedelta(weeks=value)).strftime('%Y-%m-%d')
+        elif 'mes' in unit:
+            return (today - timedelta(days=value * 30)).strftime('%Y-%m-%d')
+    
+    # Formato "publicado hace X días/horas"
+    match_pub_es = re.search(r'publicad[oa]\s+hace\s+(\d+)\s+(día|días|hora|horas|semana|semanas|mes|meses)', date_str)
+    if match_pub_es:
+        value = int(match_pub_es.group(1))
+        unit = match_pub_es.group(2)
+        
+        if 'día' in unit:
+            return (today - timedelta(days=value)).strftime('%Y-%m-%d')
+        elif 'hora' in unit:
+            return today.strftime('%Y-%m-%d')
+        elif 'semana' in unit:
+            return (today - timedelta(weeks=value)).strftime('%Y-%m-%d')
+        elif 'mes' in unit:
+            return (today - timedelta(days=value * 30)).strftime('%Y-%m-%d')
+    
+    # Formato "X days/hours ago" (inglés)
+    match_en = re.search(r'(\d+)\s+(day|days|hour|hours|week|weeks|month|months)(?:\s+ago)?', date_str)
+    if match_en:
+        value = int(match_en.group(1))
+        unit = match_en.group(2)
+        
+        if 'day' in unit:
+            return (today - timedelta(days=value)).strftime('%Y-%m-%d')
+        elif 'hour' in unit:
+            return today.strftime('%Y-%m-%d')  # Mismo día para horas
+        elif 'week' in unit:
+            return (today - timedelta(weeks=value)).strftime('%Y-%m-%d')
+        elif 'month' in unit:
+            return (today - timedelta(days=value * 30)).strftime('%Y-%m-%d')
+    
+    # Formato "posted X days/hours ago" (inglés)
+    match_posted = re.search(r'posted\s+(\d+)\s+(day|days|hour|hours|week|weeks|month|months)(?:\s+ago)?', date_str)
+    if match_posted:
+        value = int(match_posted.group(1))
+        unit = match_posted.group(2)
+        
+        if 'day' in unit:
+            return (today - timedelta(days=value)).strftime('%Y-%m-%d')
+        elif 'hour' in unit:
+            return today.strftime('%Y-%m-%d')
+        elif 'week' in unit:
+            return (today - timedelta(weeks=value)).strftime('%Y-%m-%d')
+        elif 'month' in unit:
+            return (today - timedelta(days=value * 30)).strftime('%Y-%m-%d')
+    
+    # Formatos de fecha específicos (varios idiomas)
+    # Primero intentamos formatos más estrictos
+    date_formats = [
+        '%Y-%m-%d',       # ISO: 2023-05-01
+        '%Y/%m/%d',       # ISO alternativo: 2023/05/01
+        '%d/%m/%Y',       # Español: 01/05/2023
+        '%m/%d/%Y',       # US: 05/01/2023
+        '%d-%m-%Y',       # Alternativo: 01-05-2023
+        '%m-%d-%Y',       # US alternativo: 05-01-2023
+        '%Y-%m-%dT%H:%M', # ISO con hora
+        '%Y-%m-%d %H:%M:%S', # ISO con hora y segundos
+    ]
+    
+    for fmt in date_formats:
+        try:
+            parsed_date = datetime.strptime(date_str, fmt)
+            return parsed_date.strftime('%Y-%m-%d')
+        except ValueError:
+            continue
+    
+    # Intentar con formatos con nombres de mes
+    # Lista de meses en español e inglés para reemplazar en el texto
+    months_es = {
+        'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+        'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+        'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+    }
+    
+    months_en = {
+        'january': '01', 'february': '02', 'march': '03', 'april': '04',
+        'may': '05', 'june': '06', 'july': '07', 'august': '08',
+        'september': '09', 'october': '10', 'november': '11', 'december': '12'
+    }
+    
+    # Abreviaturas de meses
+    months_abbr_es = {
+        'ene': '01', 'feb': '02', 'mar': '03', 'abr': '04',
+        'may': '05', 'jun': '06', 'jul': '07', 'ago': '08',
+        'sep': '09', 'oct': '10', 'nov': '11', 'dic': '12'
+    }
+    
+    months_abbr_en = {
+        'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04',
+        'may': '05', 'jun': '06', 'jul': '07', 'aug': '08',
+        'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12'
+    }
+    
+    # Intento con expresiones regulares para formatos con nombre de mes
+    # Patrón español: 15 de mayo de 2023, 15-mayo-2023, etc.
+    pattern_es = r'(\d{1,2})(?:\s+de)?\s+([a-zé]+)(?:\s+de)?\s+(\d{4})'
+    match_es = re.search(pattern_es, date_str)
+    if match_es:
+        day = match_es.group(1).zfill(2)
+        month_name = match_es.group(2).lower()
+        year = match_es.group(3)
+        
+        # Buscar el mes en los diccionarios
+        month = None
+        for m_dict in [months_es, months_abbr_es]:
+            if month_name in m_dict:
+                month = m_dict[month_name]
+                break
+        
+        if month and day and year:
+            return f"{year}-{month}-{day}"
+    
+    # Patrón inglés: May 15, 2023, May 15 2023, 15 May 2023, etc.
+    pattern_en1 = r'([a-z]+)\s+(\d{1,2})(?:,|\s+)?\s+(\d{4})'  # May 15, 2023
+    pattern_en2 = r'(\d{1,2})(?:\s+of)?\s+([a-z]+)(?:,|\s+)?\s+(\d{4})'  # 15 May 2023
+    
+    for pattern in [pattern_en1, pattern_en2]:
+        match_en = re.search(pattern, date_str)
+        if match_en:
+            if pattern == pattern_en1:
+                month_name = match_en.group(1).lower()
+                day = match_en.group(2).zfill(2)
+            else:
+                day = match_en.group(1).zfill(2)
+                month_name = match_en.group(2).lower()
+                
+            year = match_en.group(3)
+            
+            # Buscar el mes en los diccionarios
+            month = None
+            for m_dict in [months_en, months_abbr_en]:
+                if month_name in m_dict:
+                    month = m_dict[month_name]
+                    break
+            
+            if month and day and year:
+                return f"{year}-{month}-{day}"
+    
+    # Si llegamos aquí, no pudimos parsear la fecha
+    logger.warning(f"No se pudo parsear la fecha: '{date_str}'")
+    return None  # Devolvemos None si no se puede interpretar la fecha
+
+
 # --- Podríamos añadir más helpers aquí en el futuro ---
 # Ej: parse_date_flexible, extract_emails_from_text, etc.
 
@@ -159,3 +351,19 @@ if __name__ == '__main__':
     for base, rel in pruebas_url:
          resultado = safe_url_join(base, rel)
          print(f"Base: '{base}', Relativa: '{rel}' -> Unida: '{resultado}'")
+
+    # Prueba de process_date
+    print("\n--- Probando process_date ---")
+    fechas_prueba = [
+        "hoy",
+        "ayer",
+        "hace 3 días",
+        "2 weeks ago",
+        "01/05/2023",
+        "May 1, 2023",
+        "01 de Mayo de 2023",
+        "esto no es una fecha"
+    ]
+    for fecha in fechas_prueba:
+        resultado_fecha = process_date(fecha)
+        print(f"Fecha original: '{fecha}' -> Procesada: '{resultado_fecha}'")
