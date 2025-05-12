@@ -12,7 +12,8 @@ from typing import Dict, Any, Optional, Protocol
 class HTTPClientProtocol(Protocol):
     def get(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
         ...
-    def __init__(self, source_name: str, http_client: HTTPClientProtocol, config: Optional[Dict[str, Any]] = None):
+    
+    def close(self) -> None:
         ...
 
 logger = logging.getLogger(__name__)
