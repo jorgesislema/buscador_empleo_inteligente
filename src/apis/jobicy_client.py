@@ -10,12 +10,10 @@ import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
-# Removed unused import 'quote_plus'
 
 try:
     from src.apis.base_api import BaseAPIClient
     from src.utils.http_client import HTTPClient
-    # Removed unused import 'config_loader'
 except ImportError:
     logging.basicConfig(level=logging.WARNING)
     logging.warning("Fallo al importar módulos de src en jobicy_client...")
@@ -27,64 +25,43 @@ except ImportError:
             self.config = config
 
         def _get_api_key(self, suffix):
-            # Placeholder implementation for '_get_api_key'
             return f"dummy_key_for_{suffix}"
 
         def get_standard_job_dict(self):
             return {}
+
     class HTTPClient: pass
-    class config_loader:
-        @staticmethod
-        def get_config(): return {}
 
 logger = logging.getLogger(__name__)
 
 class JobicyClient(BaseAPIClient):
-    """ Cliente API Jobicy """
-
     DEFAULT_API_ENDPOINT = "https://jobicy.com/api/v2/remote-jobs"
 
     def __init__(self, http_client: HTTPClient, config: Optional[Dict[str, Any]] = None):
-        """ Inicializador """
         super().__init__(source_name="jobicy", http_client=http_client, config=config)
         self.api_url_base = self.config.get('api_url', self.DEFAULT_API_ENDPOINT)
         logger.info(f"[{self.source_name}] Cliente API inicializado. Endpoint base: {self.api_url_base}")
 
     def _parse_jobicy_date(self, date_str: Optional[str]) -> Optional[str]:
-        """Partea fecha 'YYYY-MM-DD HH:MM:SS' a 'YYYY-MM-DD'."""
         if not date_str or not isinstance(date_str, str):
             return None
         try:
             return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
-    def _build_api_url(self, keywords: List[str]) -> str:
-        if not keywords:
-            logger.warning(f"[{self.source_name}] No keywords provided, using default API URL.")
-            return self.api_url_base
-        try:
-            # Example logic to use keywords in URL construction
-            query_params = "&".join([f"keyword={keyword}" for keyword in keywords])
-            return f"{self.api_url_base}?{query_params}"
-        except Exception as e:
-            logger.error(f"[{self.source_name}] Error inesperado: {e}")
-            return self.api_url_base
         except Exception as e:
             logger.error(f"[{self.source_name}] Error parseando fecha '{date_str}': {e}")
             return None
 
     def _build_api_url(self, keywords: List[str]) -> str:
-        """Construye URL API. Evita tag largo."""
         url = self.api_url_base
-        # No aplicamos filtro 'tag' para evitar errores
         logger.info(f"[{self.source_name}] Obteniendo últimas ofertas generales (sin filtro 'tag').")
         logger.debug(f"[{self.source_name}] URL API final construida: {url}")
         return url
 
     def _normalize_job(self, job_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Convierte datos API Jobicy a formato estándar."""
         if not job_data or not isinstance(job_data, dict):
             return None
-        oferta = self.get_standard_job_dict()
 
+        oferta = self.get_standard_job_dict()
         oferta['titulo'] = job_data.get('jobTitle')
         oferta['empresa'] = job_data.get('companyName')
         ubic = job_data.get('jobGeo', 'Remote')
@@ -108,11 +85,11 @@ class JobicyClient(BaseAPIClient):
 
         if oferta['titulo'] and oferta['url']:
             return oferta
+
         logger.warning(f"[{self.source_name}] Oferta omitida (sin título/URL). ID: {job_data.get('id', 'N/A')}")
         return None
 
     def fetch_jobs(self, search_params: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Obtiene trabajos desde la API de Jobicy."""
         logger.info(f"[{self.source_name}] Obteniendo trabajos desde la API Jobicy...")
         all_job_offers: List[Dict[str, Any]] = []
         keywords = search_params.get('keywords', [])
@@ -145,6 +122,3 @@ class JobicyClient(BaseAPIClient):
 
         logger.info(f"[{self.source_name}] Búsqueda API finalizada. {len(all_job_offers)} ofertas.")
         return all_job_offers
-
-# --- Ejemplo de uso ---
-# (El bloque if __name__ == '__main__': es igual al anterior) 
