@@ -58,7 +58,14 @@ class RemoteOkClient(BaseAPIClient):
         logger.info(f"[{self.source_name}] Consultando API pública de Remote OK")
         all_job_offers = []
 
-        response = self.http_client.get(self.API_ENDPOINT)
+        # Añadir headers específicos para RemoteOK para evitar bloqueos
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Referer': 'https://remoteok.com/',
+        }
+        
+        response = self.http_client.get(self.API_ENDPOINT, headers=headers)
         if not response or response.status_code != 200:
             logger.error(f"[{self.source_name}] Error en la API. Status: {response.status_code if response else 'N/A'}")
             return []
@@ -67,7 +74,29 @@ class RemoteOkClient(BaseAPIClient):
             if not response:
                 logger.error(f"[{self.source_name}] Respuesta nula de la API.")
                 return []
-            raw_data = response.json()
+                
+            # Intentar decodificar el JSON directamente
+            try:
+                raw_data = response.json()
+            except json.JSONDecodeError:
+                # Si falla, verificar si hay un BOM (Byte Order Mark) u otro contenido no JSON al inicio
+                content = response.text
+                # Verificar el contenido para depuración
+                logger.debug(f"[{self.source_name}] Contenido inicial de la respuesta: {content[:100]}...")
+                
+                # Buscar el inicio del JSON (que debería ser '[')
+                json_start = content.find('[')
+                if json_start >= 0:
+                    try:
+                        raw_data = json.loads(content[json_start:])
+                        logger.info(f"[{self.source_name}] JSON extraído correctamente después de eliminar contenido no JSON inicial")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"[{self.source_name}] Error al decodificar JSON después de limpieza: {e}")
+                        return []
+                else:
+                    logger.error(f"[{self.source_name}] No se encontró inicio de JSON en la respuesta")
+                    return []
+            
             if isinstance(raw_data, list) and len(raw_data) > 1 and isinstance(raw_data[0], dict) and 'legal' in raw_data[0]:
                 jobs_list = raw_data[1:]
             elif isinstance(raw_data, list):
