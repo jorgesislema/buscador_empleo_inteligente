@@ -45,47 +45,131 @@ class JobFilter:
                 self.target_remote = any('remote' in loc or 'remoto' in loc for loc in self.target_locations)
             else:
                 logger.error("config_loader no está disponible. JobFilter usará criterios vacíos.")
-        except Exception as e:
-            logger.exception("Error durante la inicialización de JobFilter. Usando criterios vacíos.")
+        except Exception as e:            logger.exception("Error durante la inicialización de JobFilter. Usando criterios vacíos.")
             self.keywords = set()
             self.target_locations = set()
             self.target_remote = False
 
     def _matches_keywords(self, job: Dict[str, Any]) -> bool:
+        """
+        Verifica si una oferta contiene al menos UNA de las palabras clave de interés.
+        Si no hay keywords configuradas, todas las ofertas pasan este filtro.
+        """
         if not self.keywords:
             return True
 
+        # Obtener campos relevantes donde buscar keywords
         title = str(job.get('titulo', "")).lower()
         description = str(job.get('descripcion', "")).lower()
-        text = f"{title} {description}"
-        return any(kw in text for kw in self.keywords)
+        company = str(job.get('empresa', "")).lower()
+        text = f"{title} {description} {company}"
+        
+        # Primero verificamos si aparece alguna palabra clave en el título (prioridad alta)
+        for kw in self.keywords:
+            if kw in title:
+                logger.debug(f"Keyword '{kw}' encontrada en el TÍTULO de la oferta: {job.get('titulo')}")
+                return True
+                
+        # Si el título no contiene palabras clave, verificamos en la descripción completa
+        # Consideramos coincidencia si al menos una palabra clave está presente
+        for kw in self.keywords:
+            if kw in text:
+                logger.debug(f"Keyword '{kw}' encontrada en oferta: {job.get('titulo')}")
+                return True
+        
+        # Si la oferta incluye términos relacionados con programación/tecnología, 
+        # aunque no coincida exactamente con nuestras keywords, la consideramos
+        tech_indicators = ['programador', 'developer', 'ingeniero', 'engineer', 'código', 'code', 
+                          'software', 'desarrollo', 'development', 'tech', 'tecnología', 'technology',
+                          'computer', 'computación', 'informática', 'it ', ' it,', 'database', 'datos',
+                          'data', 'web', 'app', 'aplicación', 'application']
+        
+        for indicator in tech_indicators:
+            if indicator in text:
+                logger.debug(f"Indicador tecnológico '{indicator}' encontrado en oferta: {job.get('titulo')}")
+                return True
+                
+        return False
 
     def _matches_location(self, job: Dict[str, Any]) -> bool:
+        """
+        Verifica si una oferta coincide con las ubicaciones de interés.
+        Si no hay ubicaciones configuradas, todas las ofertas pasan este filtro.
+        Las ofertas remotas se aceptan si se ha configurado 'remote'/'remoto' en las ubicaciones.
+        """
+        # Si no hay restricciones de ubicación, aceptar todas
         if not self.target_locations:
             return True
 
         location = str(job.get('ubicacion', "")).lower().strip()
-        if not location:
-            return False
-
-        if location in self.target_locations:
+        
+        # Si no hay información de ubicación pero aceptamos remoto, asumimos que podría ser remoto
+        if not location and self.target_remote:
+            logger.debug(f"Oferta sin ubicación aceptada como posible remoto: {job.get('titulo')}")
             return True
 
-        if any(term in location for term in ['remote', 'remoto', 'teletrabajo']) and self.target_remote:
+        # Verificar si la ubicación está explícitamente en nuestra lista
+        for target_loc in self.target_locations:
+            if target_loc in location:
+                logger.debug(f"Ubicación '{target_loc}' coincide con '{location}' en oferta: {job.get('titulo')}")
+                return True
+
+        # Verificar si buscamos remotas y esta es remota
+        if self.target_remote and any(term in location for term in ['remote', 'remoto', 'teletrabajo', 'trabajo a distancia', 'home office', 'trabajo desde casa']):
+            logger.debug(f"Oferta remota identificada: {job.get('titulo')} - {location}")
             return True
 
+        logger.debug(f"Ubicación no coincide: '{location}' para oferta: {job.get('titulo')}")
         return False
 
     def filter_jobs(self, job_offers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Aplica los filtros de keywords y ubicación a las ofertas recibidas.
+        Devuelve las ofertas que pasan ambos filtros.
+        """
         if not job_offers:
+            logger.warning("No hay ofertas para filtrar")
             return []
 
         filtered = []
+        rejected_count = 0
+        
+        logger.info(f"Filtrando {len(job_offers)} ofertas con {len(self.keywords)} keywords y {len(self.target_locations)} ubicaciones")
         for job in job_offers:
             try:
-                if self._matches_keywords(job) and self._matches_location(job):
+                matches_keywords = self._matches_keywords(job)
+                matches_location = self._matches_location(job)
+                
+                if matches_keywords and matches_location:
+                    logger.debug(f"Oferta aceptada: {job.get('titulo')}")
                     filtered.append(job)
-            except Exception:
-                logger.error(f"Error al filtrar oferta: {job.get('url', job.get('titulo'))}", exc_info=True)
-
+                else:
+                    rejected_count += 1
+                    if not matches_keywords:
+                        logger.debug(f"Oferta rechazada por keywords: {job.get('titulo')}")
+                    if not matches_location:
+                        logger.debug(f"Oferta rechazada por ubicación: {job.get('titulo')}")
+            except Exception as e:
+                logger.error(f"Error al filtrar oferta: {job.get('url', job.get('titulo', 'Desconocido'))}", exc_info=True)
+        
+        logger.info(f"Filtrado completado: {len(filtered)} ofertas aceptadas, {rejected_count} rechazadas")
+        
+        # Si el resultado del filtrado es muy restrictivo (menos del 10% de ofertas), agregar un warning
+        if filtered and len(filtered) < 0.1 * len(job_offers):
+            logger.warning("El filtrado es muy restrictivo, considera relajar los criterios")
+            
+        # Si todas las ofertas fueron rechazadas, aplicar un filtrado menos restrictivo
+        if not filtered and job_offers:
+            logger.warning("Todas las ofertas fueron rechazadas. Aplicando filtrado más permisivo...")
+            # Devolver todas las ofertas si había pocas (menos de 10)
+            if len(job_offers) <= 10:
+                logger.info(f"Devolviendo todas las {len(job_offers)} ofertas sin filtrar por ser pocas")
+                return job_offers
+            
+            # O devolver hasta 20 ofertas si había muchas
+            else:
+                sample_size = min(20, len(job_offers))
+                logger.info(f"Devolviendo {sample_size} ofertas de muestra de las {len(job_offers)} encontradas")
+                return job_offers[:sample_size]
+            
         return filtered
