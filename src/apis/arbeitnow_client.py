@@ -67,10 +67,15 @@ class ArbeitnowClient(BaseAPIClient):
             logger.warning(f"[{self.source_name}] Oferta omitida por faltar título o URL. Slug: {job_data.get('slug', 'N/A')}")
             return None
 
-    def fetch_jobs(self) -> List[Dict[str, Any]]:
+    def fetch_jobs(self, search_params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         logger.info(f"[{self.source_name}] Obteniendo trabajos desde API Arbeitnow: {self.API_ENDPOINT}")
         all_job_offers = []
         current_page = 1
+
+        # Podemos usar search_params en un futuro para filtrar resultados
+        # Por ahora, lo registramos pero no lo usamos en la API
+        if search_params:
+            logger.debug(f"[{self.source_name}] Parámetros de búsqueda recibidos: {search_params}")
 
         while current_page <= MAX_PAGES_TO_FETCH_ARBEITNOW:
             logger.info(f"[{self.source_name}] Procesando página {current_page}...")
