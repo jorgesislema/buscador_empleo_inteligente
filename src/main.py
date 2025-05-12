@@ -38,6 +38,7 @@ try:
     from src.apis.jobicy_client import JobicyClient
     from src.apis.jooble_client import JoobleClient
     from src.apis.remoteok_client import RemoteOkClient
+    from src.apis.huggingface_client import HuggingFaceClient
 
     from src.scrapers.bumeran_scraper import BumeranScraper
     from src.scrapers.computrabajo_scraper import ComputrabajoScraper
@@ -52,6 +53,8 @@ try:
     from src.scrapers.soyfreelancer_scraper import SoyFreelancerScraper
     from src.scrapers.tecnoempleo_scraper import TecnoempleoScraper
     from src.scrapers.workana_scraper import WorkanaScraper
+    from src.scrapers.linkedin_scraper import LinkedInScraper
+    from src.scrapers.wellfound_scraper import WellfoundScraper
 except ImportError as e:
     print(f"Error CRÍTICO: No se pudieron importar módulos esenciales: {e}")
     print("Asegúrate de que la estructura del proyecto y los __init__.py estén correctos.")
@@ -66,6 +69,7 @@ SOURCE_MAP = {
     "jobicy": {"class": JobicyClient, "type": "apis"},
     "jooble": {"class": JoobleClient, "type": "apis"},
     "remoteok": {"class": RemoteOkClient, "type": "apis"},
+    "huggingface": {"class": HuggingFaceClient, "type": "apis"},
     "bumeran": {"class": BumeranScraper, "type": "scrapers"},
     "computrabajo": {"class": ComputrabajoScraper, "type": "scrapers"},
     "empleosnet": {"class": EmpleosNetScraper, "type": "scrapers"},
@@ -79,6 +83,8 @@ SOURCE_MAP = {
     "soyfreelancer": {"class": SoyFreelancerScraper, "type": "scrapers"},
     "tecnoempleo": {"class": TecnoempleoScraper, "type": "scrapers"},
     "workana": {"class": WorkanaScraper, "type": "scrapers"},
+    "linkedin": {"class": LinkedInScraper, "type": "scrapers"},
+    "wellfound": {"class": WellfoundScraper, "type": "scrapers"},
 }
 
 def run_job_search_pipeline():
@@ -109,6 +115,10 @@ def run_job_search_pipeline():
         http_client.close()
         return
 
+    # Lista para llevar un registro de cuáles fuentes tuvieron éxito y cuáles fallaron
+    successful_sources = []
+    failed_sources = []
+
     for source_type in ['apis', 'scrapers']:
         for source_name, source_cfg in sources_config.get(source_type, {}).items():
             if source_cfg and source_cfg.get('enabled', False):
@@ -121,8 +131,10 @@ def run_job_search_pipeline():
                         logger.info(f"Instancia de {SourceClass.__name__} creada exitosamente.")
                     except Exception as e:
                         logger.error(f"Error al instanciar {SourceClass.__name__} para '{source_name}'. Se omitirá esta fuente.", exc_info=True)
+                        failed_sources.append(f"{source_name} (error de inicialización)")
                 else:
                     logger.warning(f"Fuente '{source_name}' habilitada en config, ¡pero no se encontró su clase en SOURCE_MAP!")
+                    failed_sources.append(f"{source_name} (no encontrada en SOURCE_MAP)")
 
     if not active_sources:
         logger.warning("¡No hay fuentes activas configuradas para ejecutarse! Terminando pipeline.")
@@ -134,28 +146,84 @@ def run_job_search_pipeline():
                    (config.get('topics', []) or [])
     main_location = (config.get('locations', []) or [None])[0]
 
-    global_search_params = {
-        'keywords': all_keywords,
-        'location': main_location
-    }
+    # Construir varios conjuntos de parámetros de búsqueda para aumentar la cobertura
+    search_params_variations = [
+        # Parámetros completos
+        {
+            'keywords': all_keywords,
+            'location': main_location
+        },
+        # Solo palabras clave técnicas/herramientas
+        {
+            'keywords': config.get('tools_technologies', []) or [],
+            'location': main_location
+        },
+        # Solo títulos de trabajo
+        {
+            'keywords': config.get('job_titles', []) or [],
+            'location': main_location
+        }
+    ]
+    
+    # Si hay demasiadas keywords, crear versiones con menos keywords
+    if len(all_keywords) > 20:
+        # Versión con solo las 10 primeras keywords
+        search_params_variations.append({
+            'keywords': all_keywords[:10],
+            'location': main_location
+        })
+        # Versión con keywords 11-20
+        search_params_variations.append({
+            'keywords': all_keywords[10:20],
+            'location': main_location
+        })
+    
+    global_search_params = search_params_variations[0]  # Usar la primera variación como principal
     logger.info(f"Parámetros de búsqueda globales: {len(all_keywords)} keywords, location hint: '{main_location}'")
+    logger.info(f"Se usarán {len(search_params_variations)} variaciones de parámetros para aumentar resultados")
 
     logger.info(f"--- Iniciando Recolección de Datos ({len(active_sources)} fuentes activas) ---")
     all_raw_jobs = []
     for source_instance in active_sources:
         source_name = source_instance.source_name
         logger.info(f"Ejecutando fetch_jobs para: {source_name}...")
+        
+        jobs_from_source = []
         try:
+            # Intentar con el conjunto principal de parámetros primero
             jobs_from_source = source_instance.fetch_jobs(global_search_params)
+            
+            # Si no se encontraron ofertas, intentar con otras variaciones
+            if not jobs_from_source:
+                logger.info(f"No se encontraron ofertas para '{source_name}' con parámetros principales. Intentando con variaciones...")
+                for i, params in enumerate(search_params_variations[1:], 1):
+                    logger.info(f"Intentando variación {i} para '{source_name}'")
+                    variation_jobs = source_instance.fetch_jobs(params)
+                    if variation_jobs:
+                        logger.info(f"¡Éxito! Variación {i} encontró {len(variation_jobs)} ofertas para '{source_name}'")
+                        jobs_from_source.extend(variation_jobs)
+                        break
+            
             if jobs_from_source:
+                # Asegurar que cada oferta tenga el campo 'fuente' correctamente asignado
+                for job in jobs_from_source:
+                    if 'fuente' not in job or not job['fuente']:
+                        job['fuente'] = source_name
+                        
                 logger.info(f"Fuente '{source_name}' devolvió {len(jobs_from_source)} ofertas.")
                 all_raw_jobs.extend(jobs_from_source)
+                successful_sources.append(source_name)
             else:
-                logger.info(f"Fuente '{source_name}' no devolvió ofertas.")
+                logger.info(f"Fuente '{source_name}' no devolvió ofertas después de intentar todas las variaciones.")
+                failed_sources.append(f"{source_name} (sin resultados)")
         except Exception as e:
             logger.error(f"¡Error al ejecutar fetch_jobs para '{source_name}'! Se continuará con la siguiente fuente.", exc_info=True)
+            failed_sources.append(f"{source_name} (error: {str(e)[:100]}...)")
 
+    # Resumen de fuentes exitosas y fallidas
     logger.info(f"--- Recolección Finalizada. Total ofertas 'crudas' obtenidas: {len(all_raw_jobs)} ---")
+    logger.info(f"Fuentes exitosas ({len(successful_sources)}): {', '.join(successful_sources)}")
+    logger.info(f"Fuentes sin resultados o con errores ({len(failed_sources)}): {', '.join(failed_sources)}")
 
     logger.info("--- Iniciando Procesamiento/Limpieza de Datos ---")
     processed_jobs = data_processor.process_job_offers(all_raw_jobs)
@@ -173,12 +241,19 @@ def run_job_search_pipeline():
         logger.info("No hay ofertas filtradas para insertar en la base de datos.")
 
     csv_export_enabled = config.get('data_storage', {}).get('csv', {}).get('export_enabled', False)
-    if csv_export_enabled and filtered_jobs:
+    if csv_export_enabled:
         logger.info("--- Iniciando Exportación a CSV ---")
-        file_exporter.export_to_csv(filtered_jobs)
-        logger.info("--- Exportación a CSV Finalizada ---")
-    elif csv_export_enabled:
-        logger.info("La exportación a CSV está habilitada, pero no hay ofertas filtradas para exportar.")
+        if filtered_jobs:
+            # Exportar ambos archivos: todas las ofertas sin filtrar y solo las filtradas
+            file_exporter.export_to_csv(filtered_jobs, is_filtered=True, unfiltered_offers=processed_jobs)
+            logger.info("--- Exportación a CSV Finalizada (ofertas filtradas y sin filtrar) ---")
+        else:
+            # Si no hay ofertas filtradas, exportar solo las sin filtrar
+            logger.info("No hay ofertas filtradas para exportar, pero se exportarán todas las ofertas sin filtrar")
+            file_exporter.export_to_csv([], is_filtered=True, unfiltered_offers=processed_jobs)
+            logger.info("--- Exportación a CSV Finalizada (solo ofertas sin filtrar) ---")
+    else:
+        logger.info("Exportación a CSV deshabilitada en la configuración.")
 
     logger.info("Cerrando cliente HTTP...")
     http_client.close()
