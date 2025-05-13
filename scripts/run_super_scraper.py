@@ -2,12 +2,15 @@
 # /scripts/run_super_scraper.py
 
 """
-Script para ejecutar el super pipeline mejorado de búsqueda de empleo.
-Este script ejecuta todas las mejoras implementadas en el buscador de empleo:
-- Cliente HTTP mejorado con mejor manejo de errores
-- Paralelismo optimizado
-- Scrapers mejorados (LinkedIn, etc.)
-- Mejores estrategias de búsqueda
+Script para ejecutar y comparar las diferentes versiones del 
+buscador de empleo inteligente.
+
+Este script ejecuta los tres niveles de implementación para comparar resultados:
+1. Pipeline original (main.py)
+2. Pipeline mejorado (main_improved.py)
+3. Super Pipeline (super_pipeline.py - todas las mejoras)
+
+Compara tiempo de ejecución, cantidad de ofertas encontradas, y fuentes exitosas.
 """
 
 import os
@@ -15,211 +18,267 @@ import sys
 import time
 import logging
 import json
+import argparse
 from pathlib import Path
 from datetime import datetime
+from typing import Dict, Any, List, Tuple
+import importlib
+import traceback
 
 # Asegurar que podamos importar desde el directorio raíz
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-try:
-    from src.utils import logging_config
-    from src.super_pipeline import run_job_search_pipeline_super
-    from src.main_improved import run_job_search_pipeline as run_job_search_pipeline_improved
-    from src.main import run_job_search_pipeline as run_job_search_pipeline_original
-except ImportError as e:
-    print(f"Error en las importaciones: {e}")
-    print("Asegúrate de que estás ejecutando desde la carpeta correcta.")
-    sys.exit(1)
+# Verificar disponibilidad de los módulos
+def check_module_available(module_path: str) -> bool:
+    """Verifica si un módulo está disponible"""
+    try:
+        # Intentar importar directamente en lugar de usar find_spec
+        __import__(module_path)
+        return True
+    except (ImportError, ModuleNotFoundError):
+        return False
 
-# Configurar logging
-logging_config.setup_logging()
-logger = logging.getLogger("test_comparativo")
+# Configurar colores para la salida (ANSI)
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
-def run_test_comparativo():
-    """Ejecuta un test comparativo entre las diferentes versiones del pipeline"""
+def print_header(text):
+    """Imprime un encabezado formateado"""
     print("\n" + "=" * 80)
-    print("EJECUTANDO TEST COMPARATIVO DE BUSCADOR DE EMPLEO INTELIGENTE")
+    print(f"{Colors.BOLD}{Colors.HEADER}{text.center(80)}{Colors.ENDC}")
     print("=" * 80)
-    print("\nEste test comparará los resultados entre las diferentes versiones:")
-    print("1. Pipeline original (main.py)")
-    print("2. Pipeline mejorado (main_improved.py)")
-    print("3. Super Pipeline (super_pipeline.py - todas las mejoras)")
-    print("\nEl test medirá:")
-    print("- Tiempo de ejecución total")
-    print("- Cantidad de ofertas encontradas (total y filtradas)")
-    print("- Fuentes exitosas vs fallidas")
-    print("- Robustez ante errores")
-    print("\nLos resultados se guardarán en data/resultados_comparativa.json")
+
+def print_section(text):
+    """Imprime un título de sección formateado"""
+    print("\n" + "-" * 80)
+    print(f"{Colors.BOLD}{Colors.BLUE}{text.center(80)}{Colors.ENDC}")
+    print("-" * 80)
+
+def print_result(label, value, success=True, is_improvement=False):
+    """Imprime un resultado formateado con colores"""
+    color = Colors.GREEN if success else Colors.RED
+    improvement = ""
+    if is_improvement and value is not None and isinstance(value, (int, float)):
+        improvement = f" ({Colors.YELLOW}+{value}{Colors.ENDC})"
     
-    resultados = {
-        "fecha_ejecución": datetime.now().isoformat(),
-        "resultados": {}
+    print(f"{Colors.BOLD}{label}:{Colors.ENDC} {color}{value}{Colors.ENDC}{improvement}")
+
+def calculate_improvement(new_value, original_value):
+    """Calcula el porcentaje de mejora entre dos valores"""
+    if original_value == 0:
+        return 0.0 if new_value == 0 else 100.0
+    
+    improvement = ((new_value - original_value) / original_value) * 100
+    return improvement
+
+def run_pipeline(name, pipeline_func, results_dict, previous_result=None):
+    """Ejecuta un pipeline y registra sus resultados"""
+    print_section(f"Ejecutando {name}")
+    
+    start_time = time.time()
+    try:
+        result = pipeline_func()
+        elapsed_time = time.time() - start_time
+        
+        if isinstance(result, dict):
+            # Extraer métricas relevantes
+            ofertas_raw = result.get('raw_jobs', 0)
+            ofertas_procesadas = result.get('processed_jobs', 0)
+            ofertas_filtradas = result.get('filtered_jobs', 0)
+            fuentes_exitosas = result.get('successful_sources', 0)
+            fuentes_fallidas = result.get('failed_sources', 0)
+            
+            # Mostrar resultados
+            print(f"\n✅ {name} completado en {elapsed_time:.2f} segundos")
+            print_result("Ofertas encontradas (sin procesar)", ofertas_raw)
+            print_result("Ofertas procesadas", ofertas_procesadas)
+            print_result("Ofertas filtradas", ofertas_filtradas)
+            print_result("Fuentes exitosas", fuentes_exitosas)
+            print_result("Fuentes fallidas", fuentes_fallidas)
+            
+            # Calcular mejoras si hay resultados previos
+            if previous_result:
+                print_section(f"Comparación con {previous_result['name']}")
+                
+                # Calcular mejoras
+                tiempo_mejora = previous_result['time'] - elapsed_time
+                ofertas_raw_mejora = calculate_improvement(ofertas_raw, previous_result['raw_jobs'])
+                ofertas_filtradas_mejora = calculate_improvement(ofertas_filtradas, previous_result['filtered_jobs'])
+                fuentes_exitosas_mejora = calculate_improvement(fuentes_exitosas, previous_result['successful_sources'])
+                
+                # Mostrar comparación
+                tiempo_mejor = tiempo_mejora > 0
+                print_result("Diferencia en tiempo", f"{abs(tiempo_mejora):.2f} segundos {'más rápido' if tiempo_mejor else 'más lento'}", tiempo_mejor)
+                print_result("Mejora en ofertas encontradas", f"{ofertas_raw_mejora:.1f}%", ofertas_raw_mejora >= 0)
+                print_result("Mejora en ofertas filtradas", f"{ofertas_filtradas_mejora:.1f}%", ofertas_filtradas_mejora >= 0)
+                print_result("Mejora en fuentes exitosas", f"{fuentes_exitosas_mejora:.1f}%", fuentes_exitosas_mejora >= 0)
+            
+            # Guardar resultados
+            results_dict[name] = {
+                'name': name,
+                'time': elapsed_time,
+                'raw_jobs': ofertas_raw,
+                'processed_jobs': ofertas_procesadas,
+                'filtered_jobs': ofertas_filtradas,
+                'successful_sources': fuentes_exitosas,
+                'failed_sources': fuentes_fallidas,
+                'success': True,
+                'message': result.get('message', 'OK')
+            }
+            
+        else:
+            print(f"\n⚠️ {name} completado pero retornó un formato inesperado")
+            results_dict[name] = {
+                'name': name,
+                'time': elapsed_time,
+                'success': True,
+                'message': "Formato de resultado inesperado"
+            }
+            
+    except Exception as e:
+        elapsed_time = time.time() - start_time
+        print(f"\n❌ Error ejecutando {name}: {str(e)}")
+        traceback.print_exc()
+        
+        results_dict[name] = {
+            'name': name,
+            'time': elapsed_time,
+            'success': False,
+            'error': str(e)
+        }
+
+def run_test_comparativo(params=None):
+    """
+    Ejecuta un test comparativo entre las diferentes versiones del pipeline
+    
+    Args:
+        params: Parámetros de búsqueda opcionales
+    """
+    print_header("TEST COMPARATIVO DE BUSCADOR DE EMPLEO INTELIGENTE")
+    print(f"\nFecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Verificar módulos disponibles
+    print_section("Verificando módulos disponibles")
+    
+    modules = {
+        'Pipeline Original': 'src.main',
+        'Pipeline Mejorado': 'src.main_improved',
+        'Super Pipeline': 'src.super_pipeline',
+        'Cliente HTTP Mejorado': 'src.utils.http_client_improved',
+        'Manejador de Errores': 'src.utils.error_handler',
+        'LinkedIn Scraper Mejorado': 'src.scrapers.linkedin_scraper_improved',
+        'InfoJobs Scraper Mejorado': 'src.scrapers.infojobs_scraper_improved',
+        'Computrabajo Scraper Mejorado': 'src.scrapers.computrabajo_scraper_improved',
+        'Adzuna Client Mejorado': 'src.apis.adzuna_client_improved'
     }
     
-    # Ejecutar cada versión del pipeline
-    pipelines = [
-        ("original", run_job_search_pipeline_original),
-        ("mejorado", run_job_search_pipeline_improved),
-        ("super", run_job_search_pipeline_super)
-    ]
+    modules_available = {}
+    for name, module_path in modules.items():
+        is_available = check_module_available(module_path)
+        modules_available[name] = is_available
+        status = f"{Colors.GREEN}✅ Disponible{Colors.ENDC}" if is_available else f"{Colors.RED}❌ No disponible{Colors.ENDC}"
+        print(f"{name}: {status}")
     
-    for nombre, funcion in pipelines:
-        print(f"\n{'-' * 40}")
-        print(f"Ejecutando pipeline {nombre}...")
-        print(f"{'-' * 40}")
-        
-        inicio = time.time()
-        
+    # Definir funciones para las pipelines disponibles
+    pipelines = []
+    
+    if modules_available['Pipeline Original']:
         try:
-            resultado = funcion()
-            
-            fin = time.time()
-            duracion = fin - inicio
-              # Guardar resultados
-            if isinstance(resultado, dict):
-                # Extraer métricas específicas según la versión del pipeline
-                if nombre == "super":
-                    # El super pipeline tiene estructura más detallada con stats
-                    resultados["resultados"][nombre] = {
-                        "estado": resultado.get("status", "desconocido"),
-                        "mensaje": resultado.get("message", ""),
-                        "tiempo_segundos": duracion,
-                        "ofertas_filtradas": resultado.get("filtered_jobs", 0) if "filtered_jobs" in resultado else resultado.get("stats", {}).get("jobs", {}).get("total_filtered", 0),
-                        "ofertas_totales": resultado.get("processed_jobs", 0) if "processed_jobs" in resultado else resultado.get("stats", {}).get("jobs", {}).get("total_raw", 0),
-                        "fuentes_exitosas": resultado.get("stats", {}).get("sources", {}).get("successful", 0),
-                        "fuentes_fallidas": resultado.get("stats", {}).get("sources", {}).get("failed", 0),
-                        "modulos_mejorados": resultado.get("stats", {}).get("improved_modules", {}),
-                        "errores": resultado.get("stats", {}).get("error_summary", {})
-                    }
-                else:
-                    # Pipelines original y mejorado tienen estructura más simple
-                    resultados["resultados"][nombre] = {
-                        "estado": resultado.get("status", "desconocido"),
-                        "mensaje": resultado.get("message", ""),
-                        "tiempo_segundos": duracion,
-                        "ofertas_filtradas": resultado.get("filtered_jobs", 0) if "filtered_jobs" in resultado else resultado.get("summary", {}).get("filtered_jobs", 0),
-                        "ofertas_totales": resultado.get("processed_jobs", 0) if "processed_jobs" in resultado else resultado.get("summary", {}).get("raw_jobs_collected", 0),
-                        "fuentes_exitosas": resultado.get("summary", {}).get("successful_sources", 0),
-                        "fuentes_fallidas": resultado.get("summary", {}).get("failed_sources", 0)
-                    }
-            else:
-                resultados["resultados"][nombre] = {
-                    "estado": "ejecutado",
-                    "tiempo_segundos": duracion,
-                    "nota": "La función no devolvió un diccionario de resultados"
-                }
-            
-            print(f"\nPipeline {nombre} completado en {duracion:.2f} segundos.")
-            
-        except Exception as e:
-            fin = time.time()
-            duracion = fin - inicio
-            
-            print(f"\n⛔ Error ejecutando pipeline {nombre}: {e}")
-            
-            resultados["resultados"][nombre] = {
-                "estado": "error",
-                "mensaje": str(e),
-                "tiempo_segundos": duracion
-            }
+            from src.main import run_job_search_pipeline as run_original
+            pipelines.append(('Pipeline Original', run_original))
+        except ImportError:
+            print(f"{Colors.RED}❌ No se pudo importar Pipeline Original{Colors.ENDC}")
     
-    # Guardar resultados en un archivo JSON
-    resultados_file = project_root / "data" / "resultados_comparativa.json"
-    
-    try:
-        with open(resultados_file, 'w', encoding='utf-8') as f:
-            json.dump(resultados, f, indent=2, ensure_ascii=False)
-        
-        print(f"\nResultados guardados en {resultados_file}")
-    except Exception as e:
-        print(f"Error guardando resultados: {e}")
-      # Mostrar resumen comparativo
-    print("\n" + "=" * 80)
-    print("RESUMEN COMPARATIVO")
-    print("=" * 80)
-    
-    # Tabla principal con métricas básicas
-    formato = "{:<10} | {:<10} | {:<15} | {:<15} | {:<15}"
-    print(formato.format("PIPELINE", "ESTADO", "TIEMPO (s)", "OFERTAS FILTRADAS", "OFERTAS TOTALES"))
-    print("-" * 80)
-    
-    for nombre, resultado in resultados["resultados"].items():
-        estado = resultado.get("estado", "?")
-        tiempo = resultado.get("tiempo_segundos", 0)
-        ofertas_filtradas = resultado.get("ofertas_filtradas", "?")
-        ofertas_totales = resultado.get("ofertas_totales", "?")
-        
-        print(formato.format(
-            nombre,
-            estado,
-            f"{tiempo:.2f}",
-            str(ofertas_filtradas),
-            str(ofertas_totales)
-        ))
-    
-    # Mostrar tabla de fuentes (si está disponible)
-    print("\n" + "-" * 80)
-    print("FUENTES PROCESADAS")
-    print("-" * 80)
-    formato_fuentes = "{:<10} | {:<15} | {:<15}"
-    print(formato_fuentes.format("PIPELINE", "FUENTES EXITOSAS", "FUENTES FALLIDAS"))
-    print("-" * 80)
-    
-    for nombre, resultado in resultados["resultados"].items():
-        fuentes_exitosas = resultado.get("fuentes_exitosas", "?")
-        fuentes_fallidas = resultado.get("fuentes_fallidas", "?")
-        
-        print(formato_fuentes.format(
-            nombre,
-            str(fuentes_exitosas),
-            str(fuentes_fallidas)
-        ))
-    
-    # Mostrar métricas de mejora (comparando versiones)
-    if "super" in resultados["resultados"] and "original" in resultados["resultados"]:
-        super_result = resultados["resultados"]["super"]
-        original_result = resultados["resultados"]["original"]
-        
-        print("\n" + "-" * 80)
-        print("ANÁLISIS DE MEJORA (Super vs Original)")
-        print("-" * 80)
-        
-        # Calcular porcentajes de mejora
+    if modules_available['Pipeline Mejorado']:
         try:
-            tiempo_original = original_result.get("tiempo_segundos", 0)
-            tiempo_super = super_result.get("tiempo_segundos", 0)
-            
-            ofertas_original = original_result.get("ofertas_totales", 0)
-            ofertas_super = super_result.get("ofertas_totales", 0)
-            
-            if isinstance(ofertas_original, str): ofertas_original = 0
-            if isinstance(ofertas_super, str): ofertas_super = 0
-            
-            # Evitar división por cero
-            if tiempo_original > 0:
-                mejora_tiempo = ((tiempo_original - tiempo_super) / tiempo_original) * 100
-                print(f"Mejora en tiempo: {mejora_tiempo:.1f}% ({'más rápido' if mejora_tiempo > 0 else 'más lento'})")
-            
-            if ofertas_original > 0:
-                mejora_ofertas = ((ofertas_super - ofertas_original) / ofertas_original) * 100
-                print(f"Mejora en ofertas encontradas: {mejora_ofertas:.1f}% ({'más ofertas' if mejora_ofertas > 0 else 'menos ofertas'})")
-        except Exception as e:
-            print(f"No se pudo calcular métricas de mejora: {e}")
+            from src.main_improved import run_job_search_pipeline as run_improved
+            pipelines.append(('Pipeline Mejorado', run_improved))
+        except ImportError:
+            print(f"{Colors.RED}❌ No se pudo importar Pipeline Mejorado{Colors.ENDC}")
     
-    # Mostrar información sobre módulos mejorados disponibles
-    if "super" in resultados["resultados"] and "modulos_mejorados" in resultados["resultados"]["super"]:
-        modulos = resultados["resultados"]["super"]["modulos_mejorados"]
-        if modulos:
-            print("\n" + "-" * 80)
-            print("MÓDULOS MEJORADOS DISPONIBLES")
-            print("-" * 80)
-            
-            for modulo, disponible in modulos.items():
-                print(f"{modulo}: {'✅ Activo' if disponible else '❌ No disponible'}")
+    if modules_available['Super Pipeline']:
+        try:
+            from src.super_pipeline import run_job_search_pipeline_super as run_super
+            pipelines.append(('Super Pipeline', run_super))
+        except ImportError:
+            print(f"{Colors.RED}❌ No se pudo importar Super Pipeline{Colors.ENDC}")
     
-    print("=" * 80)
-    print("\nTest comparativo finalizado.")
+    if not pipelines:
+        print(f"{Colors.RED}❌ Error: No hay pipelines disponibles para ejecutar{Colors.ENDC}")
+        return
+    
+    # Ejecutar pipelines
+    results = {}
+    previous_result = None
+    
+    for name, pipeline_func in pipelines:
+        run_pipeline(name, pipeline_func, results, previous_result)
+        previous_result = results.get(name)
+        
+        # Pequeña pausa entre pipelines para liberar recursos
+        if pipelines.index((name, pipeline_func)) < len(pipelines) - 1:
+            print("\nEsperando 5 segundos antes de ejecutar el siguiente pipeline...")
+            time.sleep(5)
+    
+    # Guardar resultados
+    results_dir = project_root / "test_results"
+    results_dir.mkdir(exist_ok=True)
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results_file = results_dir / f"comparativo_{timestamp}.json"
+    
+    with open(results_file, 'w', encoding='utf-8') as f:
+        json.dump({
+            'timestamp': timestamp,
+            'modules_available': modules_available,
+            'results': results
+        }, f, indent=2, ensure_ascii=False)
+    
+    print(f"\nResultados guardados en: {results_file}")
+    
+    # Mostrar tabla comparativa final
+    print_section("RESUMEN COMPARATIVO")
+    
+    # Encabezados de tabla
+    print(f"{'Pipeline':<20} | {'Tiempo (s)':<12} | {'Ofertas':<12} | {'Filtradas':<12} | {'Fuentes OK':<12}")
+    print("-" * 80)
+    
+    for name in ['Pipeline Original', 'Pipeline Mejorado', 'Super Pipeline']:
+        if name in results:
+            result = results[name]
+            tiempo = f"{result.get('time', 0):.2f}"
+            ofertas = result.get('raw_jobs', 'N/A')
+            filtradas = result.get('filtered_jobs', 'N/A')
+            fuentes = result.get('successful_sources', 'N/A')
+            
+            # Estado (color según éxito)
+            color = Colors.GREEN if result.get('success', False) else Colors.RED
+            
+            print(f"{name:<20} | {color}{tiempo:<12}{Colors.ENDC} | {color}{ofertas:<12}{Colors.ENDC} | {color}{filtradas:<12}{Colors.ENDC} | {color}{fuentes:<12}{Colors.ENDC}")
+    
+    print_header("FIN DEL TEST COMPARATIVO")
 
 if __name__ == "__main__":
-    run_test_comparativo()
+    # Configurar argumentos de línea de comandos
+    parser = argparse.ArgumentParser(description='Ejecuta un test comparativo entre versiones del buscador de empleo')
+    parser.add_argument('--query', type=str, help='Consulta de búsqueda (opcional)')
+    parser.add_argument('--location', type=str, help='Ubicación de búsqueda (opcional)')
+    
+    args = parser.parse_args()
+    
+    # Ejecutar test con los parámetros proporcionados (si los hay)
+    params = {}
+    if args.query:
+        params['query'] = args.query
+    if args.location:
+        params['location'] = args.location
+        
+    run_test_comparativo(params if params else None)
