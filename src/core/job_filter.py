@@ -45,7 +45,8 @@ class JobFilter:
                 self.target_remote = any('remote' in loc or 'remoto' in loc for loc in self.target_locations)
             else:
                 logger.error("config_loader no está disponible. JobFilter usará criterios vacíos.")
-        except Exception as e:            logger.exception("Error durante la inicialización de JobFilter. Usando criterios vacíos.")
+        except Exception as e:
+            logger.exception("Error durante la inicialización de JobFilter. Usando criterios vacíos.")
             self.keywords = set()
             self.target_locations = set()
             self.target_remote = False
