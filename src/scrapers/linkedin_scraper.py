@@ -40,7 +40,7 @@ class LinkedInScraper(BaseScraper):
     """
     Scraper para LinkedIn Jobs que extrae ofertas de trabajo especializadas en datos.
     """
-      def __init__(self, http_client: HTTPClient, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, http_client: HTTPClient, config: Optional[Dict[str, Any]] = None):
         super().__init__(source_name="linkedin", http_client=http_client, config=config)
         if not self.base_url:
             self.base_url = "https://www.linkedin.com/jobs/search/"
@@ -79,7 +79,9 @@ class LinkedInScraper(BaseScraper):
         self.request_delay = config.get('request_delay_seconds', 2.5) if config else 2.5
         self.max_retries = config.get('max_retries', 3) if config else 3
         self.error_count = 0
-        self.success_count = 0    def _build_search_url(self, keywords: List[str], location: str, page: int = 1) -> Optional[str]:
+        self.success_count = 0
+        
+    def _build_search_url(self, keywords: List[str], location: str, page: int = 1) -> Optional[str]:
         """
         Construye la URL para buscar trabajos en LinkedIn con filtros optimizados.
         
