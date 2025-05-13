@@ -33,9 +33,8 @@ sys.path.insert(0, str(project_root))
 def check_module_available(module_path: str) -> bool:
     """Verifica si un módulo está disponible"""
     try:
-        # Intentar importar directamente en lugar de usar find_spec
-        __import__(module_path)
-        return True
+        spec = importlib.util.find_spec(module_path)
+        return spec is not None
     except (ImportError, ModuleNotFoundError):
         return False
 

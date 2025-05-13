@@ -27,10 +27,15 @@ Las mejoras implementadas abordan tres desafíos principales del sistema origina
   - Construcción inteligente de URLs de búsqueda
   
 - **`infojobs_scraper_improved.py`**: Versión mejorada del scraper de InfoJobs con:
-  - Mejor extracción de información detallada
-  - Soporte para múltiples selectores HTML (más robusto a cambios)
-  - Procesamiento de páginas de detalle
+  - Mejor extracción de información detallada  - Procesamiento de páginas de detalle
   - Estrategias anti-bloqueo
+  
+- **`computrabajo_scraper_improved.py`**: Versión mejorada del scraper de Computrabajo con:
+  - Mejor extracción de información detallada
+  - Reintentos inteligentes para páginas fallidas
+  - Rotación de User-Agents
+  - Soporte para diferentes países
+  - Procesamiento de páginas de detalle
 
 ### 3. Clientes API Mejorados
 
@@ -134,9 +139,9 @@ Las mejoras implementadas han permitido:
 
 ## Próximos Pasos
 
-Áreas identificadas para futuras mejoras:
+Aunque se han implementado muchas mejoras, aún hay oportunidades para seguir mejorando el sistema:
 
-1. Implementar scrapers mejorados para otras fuentes (Computrabajo, Indeed, etc.)
+1. Implementar scrapers mejorados para las fuentes restantes (ya tenemos LinkedIn, InfoJobs y Computrabajo)
 2. Añadir sistema de proxies rotativos para evitar bloqueos por IP
 3. Implementar almacenamiento en caché de resultados para reducir peticiones repetidas
 4. Crear un panel de control para visualizar estadísticas en tiempo real
