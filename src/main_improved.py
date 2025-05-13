@@ -14,13 +14,10 @@ Esta versión incluye:
 
 import logging
 import sys
-import os
 import traceback
 import time
 import concurrent.futures
-from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +36,7 @@ try:
     from src.apis.base_api import BaseAPIClient
     from src.scrapers.base_scraper import BaseScraper    # Importaciones de APIs y scrapers
     from src.apis.adzuna_client import AdzunaClient
-    from src.apis.arbeitnow_client import ArbeitnowClient
-    from src.apis.jobicy_client import JobicyClient
-    from src.apis.jooble_client import JoobleClient
+    from src.apis.adzuna_client import AdzunaClient
     from src.apis.remoteok_client import RemoteOkClient
     from src.apis.huggingface_client import HuggingFaceClient    # Intentar importar el scraper mejorado de LinkedIn si está disponible
     try:
@@ -105,7 +100,11 @@ class JobSearchPipeline:
     Clase que encapsula la lógica del pipeline de búsqueda de empleos.
     Esta estructura facilita el manejo de contexto y estadísticas.
     """
-    
+class JobSearchPipeline:
+    """
+    Clase que encapsula la lógica del pipeline de búsqueda de empleos.
+    Esta estructura facilita el manejo de contexto y estadísticas.
+    """
     def __init__(self):
         self.config = None
         self.http_client = None
@@ -113,16 +112,12 @@ class JobSearchPipeline:
         self.job_filter = None
         self.active_sources = []
         self.successful_sources = []
-        self.failed_sources = []        self.all_raw_jobs = []
+        self.failed_sources = []
+        self.all_raw_jobs = []
         self.processed_jobs = []
         self.filtered_jobs = []
         self.start_time = time.time()
         clear_error_registry()  # Limpiar registro de errores al inicio
-        
-    def initialize(self):
-        """Inicializa las herramientas y carga la configuración"""
-        logging_config.setup_logging()
-        logger.info("*" * 60)
         logger.info("**** Iniciando Pipeline Mejorado de Búsqueda de Empleo ****")
         logger.info("*" * 60)
         
