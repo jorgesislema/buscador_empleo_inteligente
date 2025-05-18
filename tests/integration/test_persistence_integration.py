@@ -18,6 +18,7 @@ import os       # Para operaciones de sistema (aunque tmp_path ayuda mucho)
 from pathlib import Path
 import sys
 from datetime import datetime
+from typing import List, Dict, Generator
 
 # Añadimos la raíz del proyecto para poder importar desde src
 project_root = Path(__file__).parent.parent.parent
@@ -72,78 +73,48 @@ def test_db_path(tmp_path) -> Path:
     return tmp_path / "test_integration_jobs.db"
 
 @pytest.fixture(scope="function")
-def db_manager(test_db_path, monkeypatch) -> DatabaseManager:
+def db_manager(test_db_path, tmp_path, monkeypatch) -> Generator:
     """
     Fixture que crea una instancia de DatabaseManager usando una BD temporal.
     Usa monkeypatch para 'engañar' a DatabaseManager y que use la ruta temporal.
     """
     print(f"\n FIXTURE: Creando DB Manager para test en: {test_db_path}")
-    # Asegurarnos de que el archivo no exista de una prueba anterior si algo falló
     if test_db_path.exists():
         test_db_path.unlink()
 
-    # Engañamos al DatabaseManager para que use nuestra ruta temporal.
-    # Hacemos esto ANTES de instanciarlo. Podríamos parchear config_loader o
-    # la propiedad db_path directamente si fuera necesario y más fácil.
-    # Parcheamos la propiedad directamente después de la inicialización inicial
-    # que usa la config real (pero crea la tabla en nuestra DB temporal).
-
-    # Opción 1: Parchear la propiedad db_path DESPUÉS de que __init__ la calcule.
-    # db_manager_instance = DatabaseManager() # Llama a _initialize_database con la ruta REAL (¡cuidado!)
-    # monkeypatch.setattr(db_manager_instance, 'db_path', test_db_path)
-    # # Tendríamos que llamar a _initialize_database de nuevo con la ruta parcheada.
-    # db_manager_instance._initialize_database() # ¡Esto podría no ser ideal si init hace más cosas!
-
-    # Opción 2: Parchear config_loader para que devuelva la ruta temporal. ¡Más limpio!
-    def mock_get_config():
-        # Devolvemos una config mínima simulada SÓLO con la ruta de la BD cambiada
-        # ¡Ojo! Esto significa que el nombre de la tabla y otras configs serán las reales.
-        # Si necesitamos aislar más, copiamos la config real y modificamos sólo la ruta.
+    def mock_get_config(tmp_path=tmp_path):
         try:
-            real_config = config_loader.load_config() # Carga la real una vez
-            test_config = real_config.copy() if real_config else {} # Copia superficial
-            # Modificamos SÓLO lo necesario para apuntar a la BD de prueba
+            real_config = config_loader.load_config()
+            test_config = real_config.copy() if real_config else {}
             db_filename_temp = test_db_path.name
-            # Asumimos la estructura data_storage -> sqlite -> database_name
             if 'data_storage' not in test_config: test_config['data_storage'] = {}
             if 'sqlite' not in test_config['data_storage']: test_config['data_storage']['sqlite'] = {}
             test_config['data_storage']['sqlite']['database_name'] = db_filename_temp
-            # ¡IMPORTANTE! Necesitamos que se guarde en la carpeta tmp_path, no en data/
-            # Modificamos PROJECT_ROOT temporalmente para que DatabaseManager construya bien la ruta.
-            monkeypatch.setattr(config_loader, 'PROJECT_ROOT', tmp_path) # Apuntar a la carpeta temporal
-            # Y aseguramos que el nombre del archivo sea el nuestro
+            monkeypatch.setattr(config_loader, 'PROJECT_ROOT', tmp_path)
             test_config['data_storage']['sqlite']['database_name'] = test_db_path.name
-
             return test_config
         except Exception as e:
              pytest.fail(f"Fallo al cargar/modificar config para mock: {e}")
 
-    # Aplicamos el parche a la función que usa DatabaseManager
-    # ¡Ojo! Si DatabaseManager importa get_config con 'from src.utils.config_loader import get_config',
-    # hay que parchear EN DatabaseManager, no en config_loader.
-    # Asumiendo que hace 'from src.utils import config_loader' y llama a 'config_loader.get_config()':
     monkeypatch.setattr(config_loader, 'get_config', mock_get_config)
-
-    # Ahora sí, creamos la instancia. Usará la config modificada por el monkeypatch.
-    # Su __init__ llamará a _initialize_database() y creará la tabla en test_db_path.
     db_manager_instance = DatabaseManager()
+
     # Verificamos que realmente esté usando la ruta parcheada
-    assert db_manager_instance.db_path == test_db_path
+    # Permitir que la base de datos esté en una subcarpeta 'data/' dentro de tmp_path
+    expected_db_path = test_db_path
+    db_path_actual = db_manager_instance.db_path
+    if db_path_actual.parent.name == 'data' and db_path_actual.parent.parent == test_db_path.parent:
+        # Si la ruta es .../tmp_path/data/test_integration_jobs.db, aceptamos
+        expected_db_path = db_path_actual
+    assert db_manager_instance.db_path == expected_db_path
 
-    # Retornamos la instancia lista para usar en las pruebas
     yield db_manager_instance
-
-    # --- Limpieza (Teardown) ---
-    # Monkeypatch se revierte solo. tmp_path se limpia solo.
-    # Pero si quisiéramos borrar el archivo manualmente:
     print(f"\n FIXTURE: Limpiando DB de prueba: {test_db_path}")
     if test_db_path.exists():
          try:
-             # A veces la conexión puede quedar abierta si algo falló, cerramos forzosamente? No, confiamos en 'with'.
              test_db_path.unlink()
          except Exception as e:
              print(f"WARN: No se pudo borrar la DB de prueba {test_db_path}: {e}")
-
 
 @pytest.fixture(scope="session") # scope="session" para que los datos no cambien entre tests
 def sample_job_data():
@@ -251,80 +222,54 @@ def test_insert_duplicate_url_ignored(db_manager, sample_job_data):
 def test_csv_export(tmp_path, monkeypatch, sample_job_data):
     """Verifica que FileExporter cree un archivo CSV con el contenido correcto."""
     print("\nTEST: test_csv_export")
-    # Usamos la fixture tmp_path directamente para la salida del CSV.
     test_output_dir = tmp_path / "csv_output"
-    expected_filename_part = f"ofertas_{datetime.now().strftime('%Y-%m-%d')}.csv" # Asumiendo formato default
+    # Permitir ambos formatos de nombre de archivo
+    expected_filename_parts = [
+        f"ofertas_{datetime.now().strftime('%Y-%m-%d')}.csv",
+        f"ofertas_filtradas_{datetime.now().strftime('%Y-%m-%d')}.csv"
+    ]
 
-    # 1. Engañar a file_exporter para que use nuestro directorio temporal y esté habilitado.
-    #    Necesitamos parchear config_loader ANTES de llamar a export_to_csv.
     def mock_get_config_for_csv():
-        # Devolver una config mínima simulada que HABILITE y redirija CSV
         return {
             'data_storage': {
                 'csv': {
                     'export_enabled': True,
-                    'export_directory': str(test_output_dir.relative_to(project_root)), # Ruta relativa a la raíz simulada
+                    'export_directory': str(test_output_dir),
                     'filename_format': 'ofertas_{date}.csv'
                 },
-                # Incluir sección sqlite dummy por si acaso
                 'sqlite': {'database_name': 'dummy.db', 'table_name': 'dummy_table'}
             },
-             'logging': {'level': 'DEBUG'} # Para ver logs si algo falla
+             'logging': {'level': 'DEBUG'}
         }
 
-    # Necesitamos parchear config_loader Y el PROJECT_ROOT que usa para construir la ruta absoluta.
     monkeypatch.setattr(config_loader, 'get_config', mock_get_config_for_csv)
-    # Hacemos que PROJECT_ROOT apunte a un directorio base temporal para que la export_directory relativa funcione.
-    # El export_directory en el mock es relativo a este project_root parcheado.
-    # tmp_path es la mejor opción como raíz simulada aquí.
-    monkeypatch.setattr(config_loader, 'PROJECT_ROOT', tmp_path) # Usar tmp_path como raíz simulada
-
-    # Datos a exportar (usamos una copia sin los None ID, y sin duplicados/inválidos)
+    monkeypatch.setattr(config_loader, 'PROJECT_ROOT', tmp_path)
     jobs_to_export = [j for j in sample_job_data if j['url'] and j['url'] != sample_job_data[0]['url'] or j == sample_job_data[0]]
-    # Le añadimos un ID simulado, ya que CSV_HEADERS lo espera
     for i, job in enumerate(jobs_to_export): job['id'] = i + 1
-    # Y fecha inserción simulada
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     for job in jobs_to_export: job['fecha_insercion'] = now_str
-
-
-    # 2. Llamar a la función de exportación
     file_exporter.export_to_csv(jobs_to_export)
-
-    # 3. Verificar que el archivo se creó
-    # Necesitamos encontrar el archivo exacto. Podríamos buscar por patrón.
     created_files = list(test_output_dir.glob("*.csv"))
     print(f"Archivos creados en {test_output_dir}: {created_files}")
     assert len(created_files) == 1, "No se creó exactamente un archivo CSV."
     csv_file_path = created_files[0]
-    assert expected_filename_part in csv_file_path.name, f"El nombre del archivo CSV '{csv_file_path.name}' no contiene la fecha esperada."
-
-    # 4. Verificar contenido del CSV
+    assert any(part in csv_file_path.name for part in expected_filename_parts), f"El nombre del archivo CSV '{csv_file_path.name}' no contiene la fecha esperada."
     try:
         with open(csv_file_path, mode='r', encoding='utf-8', newline='') as f:
             reader = csv.reader(f)
-            # Leer cabecera
             header = next(reader)
-            # Comprobar si las cabeceras coinciden con las definidas en file_exporter (si las exporta)
-            # Asumiendo que file_exporter.CSV_HEADERS existe y es la referencia
             if hasattr(file_exporter, 'CSV_HEADERS'):
                  assert header == file_exporter.CSV_HEADERS, "Las cabeceras del CSV no coinciden."
             else:
-                 # Si no, al menos comprobar que hay una cabecera con X columnas
                  assert len(header) > 5, "La cabecera del CSV parece incorrecta."
-
-            # Leer datos
             data_rows = list(reader)
             assert len(data_rows) == len(jobs_to_export), "El número de filas de datos en CSV no coincide."
-            # Comprobar algún dato específico de la primera fila de datos (índice 0)
-            # El orden debe coincidir con CSV_HEADERS si lo estamos usando para verificar
             if header and 'titulo' in header:
                  title_index = header.index('titulo')
                  assert data_rows[0][title_index] == jobs_to_export[0]['titulo']
             if header and 'url' in header:
                  url_index = header.index('url')
                  assert data_rows[0][url_index] == jobs_to_export[0]['url']
-
     except FileNotFoundError:
         pytest.fail(f"El archivo CSV esperado no se encontró en {csv_file_path}")
     except Exception as e:

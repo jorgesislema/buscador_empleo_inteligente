@@ -20,6 +20,7 @@ import pytest
 import sys
 from pathlib import Path
 import logging
+from typing import Dict, Optional
 
 # Añadir raíz para imports
 project_root = Path(__file__).parent.parent.parent
@@ -155,7 +156,7 @@ def test_computrabajo_scraper_integration(http_client, monkeypatch, app_config):
 
     # 2. Creamos y aplicamos el mock para _fetch_html
     mock_fetch = create_mock_fetch_html(COMPUTRABAJO_FIXTURE_MAP)
-    monkeypatch.setattr(scraper, '_fetch_html', mock_fetch)
+    monkeypatch.setattr(scraper, '_fetch_html', mock_fetch.__get__(scraper, type(scraper)))
 
     # 3. Definimos parámetros de búsqueda (deben coincidir con una clave en el fixture map si afecta la URL)
     search_params = {'keywords': ['python', 'datos'], 'location': 'Quito'} # Asume que esto genera la URL mapeada arriba
@@ -206,7 +207,7 @@ def test_infojobs_scraper_integration(http_client, monkeypatch, app_config):
 
     scraper = InfojobsScraper(http_client=http_client, config=scraper_config)
     mock_fetch = create_mock_fetch_html(INFOJOBS_FIXTURE_MAP)
-    monkeypatch.setattr(scraper, '_fetch_html', mock_fetch)
+    monkeypatch.setattr(scraper, '_fetch_html', mock_fetch.__get__(scraper, type(scraper)))
     search_params = {'keywords': ['python', 'data'], 'location': 'Remote Spain'} # Usar params que generen URL mapeada
 
     try:
