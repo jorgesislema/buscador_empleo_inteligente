@@ -34,11 +34,14 @@ try:
     from src.core.job_filter import JobFilter
     from src.core import data_processor
     from src.apis.base_api import BaseAPIClient
-    from src.scrapers.base_scraper import BaseScraper    # Importaciones de APIs y scrapers
-    from src.apis.adzuna_client import AdzunaClient
+    from src.scrapers.base_scraper import BaseScraper
     from src.apis.adzuna_client import AdzunaClient
     from src.apis.remoteok_client import RemoteOkClient
-    from src.apis.huggingface_client import HuggingFaceClient    # Intentar importar el scraper mejorado de LinkedIn si está disponible
+    from src.apis.huggingface_client import HuggingFaceClient
+    from src.apis.arbeitnow_client import ArbeitnowClient
+    from src.apis.jobicy_client import JobicyClient
+    from src.apis.jooble_client import JoobleClient
+    # Intentar importar el scraper mejorado de LinkedIn si está disponible
     try:
         from src.scrapers.linkedin_scraper_improved import LinkedInScraperImproved as LinkedInScraper
         LINKEDIN_SCRAPER_IMPROVED_AVAILABLE = True
@@ -100,11 +103,6 @@ class JobSearchPipeline:
     Clase que encapsula la lógica del pipeline de búsqueda de empleos.
     Esta estructura facilita el manejo de contexto y estadísticas.
     """
-class JobSearchPipeline:
-    """
-    Clase que encapsula la lógica del pipeline de búsqueda de empleos.
-    Esta estructura facilita el manejo de contexto y estadísticas.
-    """
     def __init__(self):
         self.config = None
         self.http_client = None
@@ -124,7 +122,8 @@ class JobSearchPipeline:
         self.config = config_loader.get_config()
         if not self.config:
             logger.critical("¡Fallo al cargar la configuración! Abortando pipeline.")
-            return False
+            # No retornar nada, solo dejar el objeto en estado inválido
+            return
         
         logger.info("Inicializando herramientas mejoradas: ImprovedHTTPClient, DatabaseManager, JobFilter...")
         self.http_client = ImprovedHTTPClient()
@@ -136,9 +135,7 @@ class JobSearchPipeline:
         logger.info(f"- Cliente HTTP mejorado: Activo")
         logger.info(f"- Manejador de errores: {'Activo' if 'error_handler' in sys.modules else 'No disponible'}")
         logger.info(f"- LinkedIn Scraper mejorado: {'Activo' if LINKEDIN_SCRAPER_IMPROVED_AVAILABLE else 'No disponible'}")
-        
-        return True
-    
+
     def load_sources(self):
         """Carga e inicializa las fuentes de datos habilitadas"""
         logger.info("Identificando y cargando fuentes habilitadas desde settings.yaml...")
@@ -154,7 +151,12 @@ class JobSearchPipeline:
                     if source_name in SOURCE_MAP:
                         SourceClass = SOURCE_MAP[source_name]["class"]
                         try:
-                            instance = SourceClass(http_client=self.http_client, config=source_cfg)
+                            # Usar ImprovedHTTPClient solo para APIs, HTTPClient para scrapers clásicos
+                            if source_type == 'apis':
+                                instance = SourceClass(http_client=self.http_client, config=source_cfg)
+                            else:
+                                from src.utils.http_client import HTTPClient
+                                instance = SourceClass(http_client=HTTPClient(), config=source_cfg)
                             self.active_sources.append(instance)
                             logger.info(f"Instancia de {SourceClass.__name__} creada exitosamente.")
                         except Exception as e:
@@ -450,9 +452,6 @@ class JobSearchPipeline:
     def run(self):
         """Ejecuta el pipeline completo de búsqueda de empleo"""
         try:
-            if not self.initialize():
-                return {"status": "error", "message": "Falló la inicialización"}
-            
             if not self.load_sources():
                 return {"status": "error", "message": "No se pudieron cargar las fuentes"}
             
