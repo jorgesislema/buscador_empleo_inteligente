@@ -9,6 +9,7 @@ Enfocada principalmente en tecnología y desarrollo de software.
 import re
 import json
 import logging
+import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from bs4 import BeautifulSoup
@@ -17,6 +18,12 @@ from src.scrapers.base_scraper import BaseScraper
 from src.utils.helpers import normalize_text, safe_url_join, process_date
 
 logger = logging.getLogger(__name__)
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0",
+]
 
 class RemoteOkScraper(BaseScraper):
     """
@@ -61,6 +68,32 @@ class RemoteOkScraper(BaseScraper):
         
         return search_url
     
+    def _fetch_html_with_retry(self, url, max_retries=3):
+        """
+        Obtiene el contenido HTML de una URL con reintentos y rotación de User-Agent.
+        
+        Args:
+            url: URL a la que se hará la petición
+            max_retries: Número máximo de reintentos
+            
+        Returns:
+            Contenido HTML de la respuesta o None si falla
+        """
+        for attempt in range(max_retries):
+            headers = {
+                'User-Agent': random.choice(USER_AGENTS),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+            }
+            try:
+                response = self.http_client.get(url, headers=headers)
+                if response and response.text:
+                    return response.text
+            except Exception as e:
+                logger.warning(f"[{self.source_name}] Reintento {attempt+1} fallido para {url}: {e}")
+        logger.error(f"[{self.source_name}] Fallaron todos los reintentos para {url}")
+        return None
+    
     def search_jobs(self, keyword: str, location: Optional[str] = None, max_pages: int = 1) -> List[Dict[str, Any]]:
         """
         Busca trabajos en RemoteOK para la keyword dada.
@@ -80,9 +113,10 @@ class RemoteOkScraper(BaseScraper):
         logger.info(f"Buscando ofertas en {self.source_name}: {search_url}")
         
         try:
-            # Usar headers personalizados
-            response = self.http_client.get(search_url, headers=self.custom_headers)
-            html_content = response.text
+            html_content = self._fetch_html_with_retry(search_url)
+            if not html_content:
+                logger.error(f"[{self.source_name}] No se pudo obtener HTML tras reintentos para {search_url}")
+                return []
             
             # RemoteOK tiene una API JSON oculta, intentamos usarla primero
             json_jobs = self._try_json_api(html_content)
