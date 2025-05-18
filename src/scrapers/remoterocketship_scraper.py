@@ -11,12 +11,19 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 import re
 from urllib.parse import quote_plus, urljoin
+import random
 
 from src.scrapers.base_scraper import BaseScraper
 from src.utils.http_client import HTTPClient
 
 logger = logging.getLogger(__name__)
 MAX_PAGES_TO_SCRAPE_ROCKETSHIP = 5
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0",
+]
 
 class RemoteRocketshipScraper(BaseScraper):
     def __init__(self, http_client: HTTPClient, config: Optional[Dict[str, Any]] = None):
@@ -39,6 +46,16 @@ class RemoteRocketshipScraper(BaseScraper):
         logger.debug(f"[{self.source_name}] URL construida: {search_url}")
         return search_url
 
+    def _fetch_html_with_retry(self, url, max_retries=3):
+        for attempt in range(max_retries):
+            headers = {'User-Agent': random.choice(USER_AGENTS)}
+            html = self._fetch_html(url, headers=headers)
+            if html:
+                return html
+            logger.warning(f"[{self.source_name}] Reintento {attempt+1} fallido para {url}")
+        logger.error(f"[{self.source_name}] Fallaron todos los reintentos para {url}")
+        return None
+
     def fetch_jobs(self, search_params: Dict[str, Any]) -> List[Dict[str, Any]]:
         logger.info(f"[{self.source_name}] Iniciando búsqueda con: {search_params}")
         all_job_offers = []
@@ -51,7 +68,7 @@ class RemoteRocketshipScraper(BaseScraper):
             if not current_url:
                 break
 
-            html_content = self._fetch_html(current_url)
+            html_content = self._fetch_html_with_retry(current_url)
             if not html_content:
                 break
 
@@ -59,30 +76,30 @@ class RemoteRocketshipScraper(BaseScraper):
             if not soup:
                 break
 
-            job_cards = soup.select('div.job-listing-item, li.job-item')
+            job_cards = soup.select('div.job-listing-item, li.job-item, div.job-card, div.job')
             if not job_cards:
                 logger.info(f"[{self.source_name}] No hay más ofertas.")
                 break
 
             for card in job_cards:
                 oferta = self.get_standard_job_dict()
-                title_link_element = card.select_one('h2 a, a.job-title-link')
+                title_link_element = card.select_one('h2 a, a.job-title-link, a.job-title')
                 oferta['titulo'] = self._safe_get_text(title_link_element)
                 oferta['url'] = self._safe_get_attribute(title_link_element, 'href')
                 if oferta['url'] and oferta['url'].startswith('/'):
                     oferta['url'] = urljoin(self.base_url, oferta['url'])
 
-                company_element = card.select_one('span.company-name, div.company-info a')
+                company_element = card.select_one('span.company-name, div.company-info a, span.company, div.company')
                 oferta['empresa'] = self._safe_get_text(company_element)
 
-                location_element = card.select_one('span.location-restriction, div.job-location')
+                location_element = card.select_one('span.location-restriction, div.job-location, span.location, div.location')
                 oferta['ubicacion'] = self._safe_get_text(location_element)
 
-                date_element = card.select_one('span.date-posted, time.datetime-posted')
+                date_element = card.select_one('span.date-posted, time.datetime-posted, span.date, time')
                 date_text = self._safe_get_text(date_element)
                 oferta['fecha_publicacion'] = self._parse_relative_date(date_text)
 
-                tags_elements = card.select('span.tag, div.tags a')
+                tags_elements = card.select('span.tag, div.tags a, span.skill, div.skill')
                 tags = [self._safe_get_text(tag) for tag in tags_elements if self._safe_get_text(tag)]
                 oferta['descripcion'] = f"Tags: {', '.join(tags)}" if tags else None
 
@@ -91,7 +108,7 @@ class RemoteRocketshipScraper(BaseScraper):
                 else:
                     logger.warning(f"[{self.source_name}] Oferta omitida por faltar título o URL.")
 
-            next_page_link_element = soup.select_one('a.next-page-link, li.pagination-next a')
+            next_page_link_element = soup.select_one('a.next-page-link, li.pagination-next a, a.next, a[rel=\"next\"]')
             if next_page_link_element:
                 next_page_href = self._safe_get_attribute(next_page_link_element, 'href')
                 if next_page_href and next_page_href != '#':
