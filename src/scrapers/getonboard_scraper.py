@@ -9,6 +9,7 @@ sector tecnológico y digital, populares en LATAM y España.
 """
 
 import logging
+import random
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from urllib.parse import quote_plus
@@ -18,6 +19,12 @@ from src.utils.http_client import HTTPClient
 
 logger = logging.getLogger(__name__)
 MAX_PAGES_TO_SCRAPE_GETONBOARD = 10
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0",
+]
 
 class GetonboardScraper(BaseScraper):
     def __init__(self, http_client: HTTPClient, config: Optional[Dict[str, Any]] = None):
@@ -45,6 +52,16 @@ class GetonboardScraper(BaseScraper):
         logger.debug(f"[{self.source_name}] URL de búsqueda construida: {full_url}")
         return full_url
 
+    def _fetch_html_with_retry(self, url, max_retries=3):
+        for attempt in range(max_retries):
+            headers = {'User-Agent': random.choice(USER_AGENTS)}
+            html = self._fetch_html(url, headers=headers)
+            if html:
+                return html
+            logger.warning(f"[{self.source_name}] Reintento {attempt+1} fallido para {url}")
+        logger.error(f"[{self.source_name}] Fallaron todos los reintentos para {url}")
+        return None
+
     def fetch_jobs(self, search_params: Dict[str, Any]) -> List[Dict[str, Any]]:
         logger.info(f"[{self.source_name}] Iniciando búsqueda con: {search_params}")
         all_job_offers = []
@@ -58,7 +75,7 @@ class GetonboardScraper(BaseScraper):
                 logger.error(f"[{self.source_name}] URL inválida para página {current_page}. Abortando.")
                 break
 
-            html_content = self._fetch_html(current_url)
+            html_content = self._fetch_html_with_retry(current_url)
             if not html_content:
                 logger.warning(f"[{self.source_name}] No se obtuvo HTML de página {current_page}. Terminando.")
                 break
@@ -68,7 +85,7 @@ class GetonboardScraper(BaseScraper):
                 logger.warning(f"[{self.source_name}] No se parseó HTML de página {current_page}. Terminando.")
                 break
 
-            job_cards = soup.select('article.gb-job-card, div.job-container')
+            job_cards = soup.select('article.gb-job-card, div.job-container, div.job-card, div.job')
             if not job_cards:
                 logger.info(f"[{self.source_name}] No se encontraron ofertas en página {current_page}. Fin.")
                 break
@@ -77,30 +94,30 @@ class GetonboardScraper(BaseScraper):
 
             for card in job_cards:
                 oferta = self.get_standard_job_dict()
-                title_link_element = card.select_one('a[data-gtm="title"], h2.job-title a')
+                title_link_element = card.select_one('a[data-gtm="title"], h2.job-title a, a.job-title')
                 detail_url_relative = self._safe_get_attribute(title_link_element, 'href')
                 oferta['url'] = self._build_url(detail_url_relative)
                 oferta['titulo'] = self._safe_get_text(title_link_element)
 
-                company_element = card.select_one('a[data-gtm="company"], span.company-name')
+                company_element = card.select_one('a[data-gtm="company"], span.company-name, span.company, div.company')
                 oferta['empresa'] = self._safe_get_text(company_element)
 
-                location_element = card.select_one('span.location-tag, div.job-location')
+                location_element = card.select_one('span.location-tag, div.job-location, span.location, div.location')
                 oferta['ubicacion'] = self._safe_get_text(location_element)
 
-                date_element = card.select_one('time, span.publication-date')
+                date_element = card.select_one('time, span.publication-date, span.date, time')
                 date_text = self._safe_get_text(date_element)
                 oferta['fecha_publicacion'] = date_text
 
-                salary_element = card.select_one('span.salary-tag, div.job-salary')
+                salary_element = card.select_one('span.salary-tag, div.job-salary, span.salary, div.salary')
                 oferta['salario'] = self._safe_get_text(salary_element)
 
                 oferta['descripcion'] = None
                 if oferta['url']:
-                    detail_html = self._fetch_html(oferta['url'])
+                    detail_html = self._fetch_html_with_retry(oferta['url'])
                     detail_soup = self._parse_html(detail_html)
                     if detail_soup:
-                        desc_container = detail_soup.select_one('div[data-gtm="description"], div.job-description-section')
+                        desc_container = detail_soup.select_one('div[data-gtm="description"], div.job-description-section, div.description, div.job-desc')
                         if desc_container:
                             oferta['descripcion'] = self._safe_get_text(desc_container)
 
@@ -109,7 +126,7 @@ class GetonboardScraper(BaseScraper):
                         if skills:
                             oferta['descripcion'] = (oferta['descripcion'] or '') + f"\n\nSkills: {', '.join(skills)}"
 
-                        salary_detail_element = detail_soup.select_one('div.salary-details')
+                        salary_detail_element = detail_soup.select_one('div.salary-details, div.salary-detail')
                         if salary_detail_element:
                             salary_detail_text = self._safe_get_text(salary_detail_element)
                             if salary_detail_text:
