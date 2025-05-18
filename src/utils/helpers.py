@@ -88,21 +88,23 @@ def safe_url_join(base_url: Optional[str], relative_path: Optional[str]) -> Opti
     Returns:
         Optional[str]: La URL absoluta resultante, o None si las entradas son inválidas.
     """
-    if not base_url or not relative_path:
-        # logger.debug(f"No se puede unir URL. Base: '{base_url}', Relativa: '{relative_path}'")
-        return None # No podemos unir si falta alguna parte.
-
+    if not base_url:
+        return None # No podemos unir si falta la base.
+    if relative_path is None:
+        return None
     if not isinstance(base_url, str) or not isinstance(relative_path, str):
          logger.warning(f"Se esperaban strings para unir URLs, recibido: {type(base_url)}, {type(relative_path)}")
          return None
-
+    if relative_path == "":
+        # Si el path es vacío, devolvemos la base (comportamiento estándar de urljoin)
+        return base_url
     try:
         # urljoin es la forma más robusta y estándar en Python para esto.
         joined_url = urljoin(base_url, relative_path)
         # Una verificación simple por si acaso urljoin devuelve algo inesperado
-        if not isinstance(joined_url, str) or not joined_url.startswith('http'):
+        # Aceptar cualquier esquema válido (http, https, ftp, etc.)
+        if not isinstance(joined_url, str) or not re.match(r'^[a-zA-Z][a-zA-Z0-9+.-]*://', joined_url):
              logger.warning(f"urljoin devolvió un resultado inesperado o no absoluto: '{joined_url}' desde base '{base_url}' y path '{relative_path}'")
-             # Podríamos intentar devolver None o el resultado tal cual. Devolvamos None si no parece URL válida.
              return None
         return joined_url
     except ValueError as e:
@@ -346,7 +348,8 @@ if __name__ == '__main__':
         (None, "path/"),
         ("https://base.com", None),
         ("ftp://ftp.ejemplo.com", "archivo.zip"), # urljoin maneja otros esquemas
-        ("esto no es url", "path") # Base inválida
+        ("esto no es url", "path"), # Base inválida
+        ("https://www.ejemplo.com", "") # Relativa vacía
     ]
     for base, rel in pruebas_url:
          resultado = safe_url_join(base, rel)
